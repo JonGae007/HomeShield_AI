@@ -26,9 +26,3 @@ Projektname(z.B. Gesichtserkennung)/
 ├── FinalMitBugs/   # Dieser Ordner enthält eine finale Version der Software, die noch bekannte Fehler enthalten kann.
 │
 └── Tests/          # Testskripte und Testdaten zur Überprüfung der Softwarefunktionalitäten.
-
-=======
-# HomeShield_AI
-Ein sicheres und effizientes zu Hause
-Test
->>>>>>> main

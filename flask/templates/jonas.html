@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raik Bild</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 50px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .error {
+            color: #d32f2f;
+            font-style: italic;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Raik Bild</h1>
+        <img src="{{ url_for('static', filename='jonas.png') }}" alt="Raik" onerror="this.style.display='none'; document.getElementById('error-msg').style.display='block';">
+        <div id="error-msg" class="error" style="display: none;">
+            Das Bild "raik.png" konnte nicht geladen werden. Bitte überprüfen Sie, ob die Datei im static-Ordner vorhanden ist.
+        </div>
+    </div>
+</body>
+</html>

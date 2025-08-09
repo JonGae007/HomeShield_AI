@@ -1,0 +1,144 @@
+body {
+    font-family: Inter, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #11161D;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 32px;
+}
+
+form {
+    background-color: #232831;
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 400px;
+    margin-top: 0;
+}
+
+label {
+    text-align: left;
+    width: 100%;
+    margin-bottom: 10px;
+    font-size: 18px;
+}
+
+input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: none;
+    border-radius: 5px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+    font-size: 16px;
+}
+
+input[type="submit"] {
+    background-color: #28a745;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 18px;
+    width: 100%;
+}
+
+input[type="submit"]:hover {
+    background-color: #218838;
+}
+
+.sidebar {
+    width: 250px;
+    height: 100vh;
+    background-color: #232831;
+    color: #FFFFFF;
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 20px;
+}
+
+.sidebar .logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar .logo img {
+    margin-right: 10px;
+}
+
+.sidebar .menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+
+.sidebar .menu li {
+    width: 100%;
+    text-align: left;
+}
+
+.sidebar .menu li a {
+    text-decoration: none;
+    color: #CCCCCC;
+    font-size: 18px;
+    display: block;
+    padding: 10px;
+}
+
+.sidebar .menu li a:hover {
+    background-color: #1A1A1A;
+    color: #FFFFFF;
+}
+
+.sidebar .menu li a.active {
+    color: #FFFFFF;
+    font-weight: bold;
+}
+
+.sidebar .menu li img {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+    vertical-align: middle;
+    
+}
+.sidebar h2 {
+    font-size: 20px;
+    margin: 20px 0;
+}
+
+.content {
+    margin-left: 250px;
+    padding: 20px;
+}
+
+footer {
+    position: absolute;
+    bottom: 10px;
+    left: 0;
+    width: 250px;
+    text-align: center;
+    color: #CCCCCC;
+    font-size: 14px;
+    padding: 10px 0;
+}

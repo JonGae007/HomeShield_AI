@@ -3,12 +3,23 @@ import sqlite3
 
 app = Flask(__name__)
 
-connection = sqlite3.connect('homeshieldAI.db')
-cursor = connection.cursor()
+def get_db_connection():
+    # Verbindung bei jeder Anfrage neu erstellen
+    return sqlite3.connect('homeshieldAI.db')
+
+def check_login(username, password):
+    # Benutzer suchen
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
+    user = cursor.fetchone()
+    connection.close()
+    return user is not None  # True, wenn gefunden
+
 
 @app.route('/')
 def home():
-    return redirect("/dashboard", code=302)
+    return redirect("/login", code=302)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -20,8 +31,10 @@ def login():
         if not username or not password:
             error = "Fehlende Eingaben."
         else:
-            # Beispiel: Anmeldedaten validieren
-            return f"Erfolgreich eingeloggt als: {username} mit {password}"
+            if check_login(username, password):
+                return redirect("/dashboard", code=302)
+            else:
+                error = "Ungültige Anmeldedaten."
 
     return render_template('login.html', error=error)
 

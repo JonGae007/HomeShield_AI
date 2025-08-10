@@ -1,18 +1,29 @@
-from flask import Flask, render_template, redirect
+from flask import Flask, render_template, redirect, request
 import sqlite3
 
 app = Flask(__name__)
 
-db = sqlite3.connect('users.db')
-cursor = db.cursor()
+connection = sqlite3.connect('homeshieldAI.db')
+cursor = connection.cursor()
 
 @app.route('/')
 def home():
     return redirect("/dashboard", code=302)
 
-@app.route('/login')
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    return render_template('login.html')
+    error = None
+    if request.method == 'POST':
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        if not username or not password:
+            error = "Fehlende Eingaben."
+        else:
+            # Beispiel: Anmeldedaten validieren
+            return f"Erfolgreich eingeloggt als: {username} mit {password}"
+
+    return render_template('login.html', error=error)
 
 @app.route('/dashboard')
 def dashboard():

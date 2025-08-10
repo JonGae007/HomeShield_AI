@@ -1,0 +1,12 @@
+import sqlite3
+from getpass import getpass
+
+connection = sqlite3.connect('homeshieldAI.db')
+cursor = connection.cursor()
+user = input("Enter username: ")
+password = getpass("Enter password: ")
+create_table_query = '''INSERT INTO users (username, password) VALUES (?, ?)'''
+cursor.execute(create_table_query, (user, password))
+connection.commit()
+connection.close()
+

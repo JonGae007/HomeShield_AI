@@ -1,23 +1,39 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
-    <link rel="stylesheet" href="/static/login.css">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
-    <style>
-    </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HomeShieldAI – Login</title>
+    <link rel="stylesheet" href="/static/login.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 </head>
 <body>
-    <h1>Login</h1>
-    <form action="/login" method="post">
-        <label for="username">Benutzername</label>
-        <input type="text" id="username" name="username" required />
-        <br />
-        <label for="password">Passwort</label>
-        <input type="password" id="password" name="password" required />
-        <br />
-        <input type="submit" value="Login" />
-    </form>
+    <!-- Brand bar -->
+    <header class="brand">
+        <img src="/static/icons/logo.png" alt="HomeShieldAI Logo" class="brand__logo" />
+        <span class="brand__name">HomeShieldAI</span>
+    </header>
+
+    <!-- Login Card -->
+    <main class="login-card">
+        <h1 class="login-title">Login</h1>
+
+    <form action="/login" method="post" class="login-form" autocomplete="on">
+        {% if error %}
+        <div class="error-message">
+            {{ error|safe }}
+        </div>
+        {% endif %}
+        <label for="username" class="label">Benutzername</label>
+            <input type="text" id="username" name="username" class="input"/>
+
+            <label for="password" class="label">Passwort</label>
+            <input type="password" id="password" name="password" class="input"/>
+
+            <button type="submit" class="btn-primary">Login</button>
+        </form>
+    </main>
 </body>
 </html>

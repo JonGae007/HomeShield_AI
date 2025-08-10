@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/x-icon" href="/static/icons/logo.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
@@ -18,8 +19,12 @@
             <li><a href="/settings"><img src="/static/icons/settings.png" alt="Settings Icon"> Einstellungen</a></li>
         </ul>
         <footer>
-            <p>Created by Raik und Jonas</p>
+            <p>Created by Raik and Jonas</p>
         </footer>
+    </div>
+    <div class="topbar" href="/account">
+        <img src="/static/icons/user.png" alt="User Icon">
+        {{ username }}
     </div>
     <div class="content">
         <h1>Aufzeichnungen</h1>

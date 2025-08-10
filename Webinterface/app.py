@@ -66,17 +66,20 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html')
+    username = session.get('username', 'Guest')
+    return render_template('dashboard.html', username=username)
 
 @app.route('/recordings')
 @login_required
 def recordings():
-    return render_template('recordings.html')
+    username = session.get('username', 'Guest')
+    return render_template('recordings.html', username=username)
 
 @app.route('/settings')
 @login_required
 def settings():
-    return render_template('settings.html')
+    username = session.get('username', 'Guest')
+    return render_template('settings.html', username=username)
 
 if __name__ == '__main__':
     app.run(debug=True, port=80, host="0.0.0.0")

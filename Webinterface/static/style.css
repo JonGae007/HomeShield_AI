@@ -209,7 +209,8 @@ footer {
     color: #CCCCCC;
 }
 .cards {
-    width: 350px;
+    width: 50%;
+    height: 220px;
     background-color: #232831;
     border-radius: 12px;
     overflow: hidden;

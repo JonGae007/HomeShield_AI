@@ -127,9 +127,12 @@ input[type="submit"]:hover {
     margin: 20px 0;
 }
 
-.content {
-    margin-left: 250px;
-    padding: 20px;
+body h1 {
+    text-align: center;
+    margin-top: 0;
+    position: absolute;
+    top: 20px;
+    width: 100%;
 }
 
 footer {
@@ -169,4 +172,39 @@ footer {
 
 .topbar:hover {
     background-color: #1A1F27;
+}
+
+.dashboard-widgets {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Adjusted for responsive layout */
+    gap: 20px; /* Reduced gap for tighter spacing */
+    padding: 20px; /* Adjusted padding for balanced layout */
+    justify-content: center; /* Center the grid */
+}
+
+.widget {
+    background-color: #232831;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    text-align: center;
+    padding: 20px; /* Adjusted padding for consistent spacing */
+    color: #FFFFFF;
+    width: 100%; /* Ensure widgets fill their grid cells */
+    margin: auto; /* Center widgets within their grid cells */
+}
+
+.widget h3 {
+    margin-bottom: 0px;
+    font-size: 18px;
+}
+
+.widget img {
+    width: 100%; /* Ensure images fill the widget width */
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+.widget p {
+    font-size: 16px;
+    color: #CCCCCC;
 }

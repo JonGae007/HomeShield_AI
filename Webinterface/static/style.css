@@ -274,18 +274,58 @@ footer {
     background: transparent;
 }
 
+.cards-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* 3 Cards pro Reihe */
+    gap: 24px;
+    width: 100%;
+    justify-items: center;
+}
+
 .cards {
     width: 100%;
     height: 220px;
+    width: 320px;
+    height: auto; /* Höhe automatisch anpassen */
     background-color: #232831;
     border-radius: 12px;
     overflow: hidden;
-    margin-bottom: 24px;
+    margin-bottom: 0;
     box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    display: flex;
+    flex-direction: column;
+}
+
+.cards img {
+    width: 100%;
+    height: 140px;         /* Bildhöhe begrenzen */
+    object-fit: cover;     /* Bild wird zugeschnitten, falls nötig */
+    display: block;
 }
 
 .cards-footer {
-    border-radius: 0 0 12px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
     background-color: #232831;
-    margin: 0;
+    border-radius: 0 0 12px 12px;
+    color: #fff;
+    min-height: 40px;
+}
+
+.footer-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.footer-duration {
+    white-space: nowrap;
 }

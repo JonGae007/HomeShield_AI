@@ -170,3 +170,18 @@ footer {
 .topbar:hover {
     background-color: #1A1F27;
 }
+.cards {
+    width: 350px;
+    background-color: #232831;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    padding: 0;
+}
+
+.cards-footer {
+    border-radius: 0 0 12px 12px;
+    background-color: #232831;
+    margin: 0;
+}

@@ -81,5 +81,11 @@ def settings():
     username = session.get('username', 'Guest')
     return render_template('settings.html', username=username)
 
+@app.route('/account')
+@login_required
+def account():
+    username = session.get('username', 'Guest')
+    return render_template('account.html', username=username)
+
 if __name__ == '__main__':
     app.run(debug=True, port=80, host="0.0.0.0")

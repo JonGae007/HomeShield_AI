@@ -29,89 +29,26 @@
     <div class="content">
         <h1>Aufzeichnungen</h1>
         <div class="cards-container">
-             <div class="cards">
-                <img src="/static/pictures/test.png" alt="Testbild" style="width:100%; border-radius:12px 12px 0 0;">
-                <div class="cards-footer">
-                    <span>Datum: 20.08.2025</span>
-                    <a href="/static/pictures/test.png" download title="Download">
-                        <img src="/static/icons/download.png" alt="Download Icon" style="width:20px; height:20px; margin-left:10px; vertical-align:middle;">
-                    </a>
-                </div>
-            </div>
-             <div class="cards">
-                <img src="/static/pictures/test.png" alt="Testbild" style="width:100%; border-radius:12px 12px 0 0;">
-                <div class="cards-footer">
-                    <span>Datum: 20.08.2025</span>
-                    <a href="/static/pictures/test.png" download title="Download">
-                        <img src="/static/icons/download.png" alt="Download Icon" style="width:20px; height:20px; margin-left:10px; vertical-align:middle;">
-                    </a>
-                </div>
-            </div>
-             <div class="cards">
-                <img src="/static/pictures/test.png" alt="Testbild" style="width:100%; border-radius:12px 12px 0 0;">
-                <div class="cards-footer">
-                    <span>Datum: 20.08.2025</span>
-                    <a href="/static/pictures/test.png" download title="Download">
-                        <img src="/static/icons/download.png" alt="Download Icon" style="width:20px; height:20px; margin-left:10px; vertical-align:middle;">
-                    </a>
-                </div>
-            </div>
+            {% for capture in captures %}
             <div class="cards">
-                <img src="/static/pictures/test.png" alt="Testbild" style="width:100%; border-radius:12px 12px 0 0;">
+                <img src="/{{ capture.path }}" alt="Aufgenommenes Bild" style="width:100%; border-radius:12px 12px 0 0;">
                 <div class="cards-footer">
-                    <span>Datum: 20.08.2025</span>
-                    <a href="/static/pictures/test.png" download title="Download">
+                    <span>{{ capture.formatted_date }}</span>
+                    <a href="/{{ capture.path }}" download="{{ capture.filename }}" title="Download">
                         <img src="/static/icons/download.png" alt="Download Icon" style="width:20px; height:20px; margin-left:10px; vertical-align:middle;">
                     </a>
                 </div>
             </div>
+            {% endfor %}
+            
+            {% if not captures %}
             <div class="cards">
-                <img src="/static/pictures/test.png" alt="Testbild" style="width:100%; border-radius:12px 12px 0 0;">
-                <div class="cards-footer">
-                    <span>Datum: 20.08.2025</span>
-                    <a href="/static/pictures/test.png" download title="Download">
-                        <img src="/static/icons/download.png" alt="Download Icon" style="width:20px; height:20px; margin-left:10px; vertical-align:middle;">
-                    </a>
+                <div style="padding: 20px; text-align: center; color: #666;">
+                    <p>Noch keine Aufnahmen vorhanden.</p>
+                    <p>Nehmen Sie ein Foto über das Dashboard auf.</p>
                 </div>
             </div>
-             <div class="cards">
-                <img src="/static/pictures/test.png" alt="Testbild" style="width:100%; border-radius:12px 12px 0 0;">
-                <div class="cards-footer">
-                    <span>Datum: 20.08.2025</span>
-                    <a href="/static/pictures/test.png" download title="Download">
-                        <img src="/static/icons/download.png" alt="Download Icon" style="width:20px; height:20px; margin-left:10px; vertical-align:middle;">
-                    </a>
-                </div>
-            </div>
-             <div class="cards">
-                <img src="/static/pictures/test.png" alt="Testbild" style="width:100%; border-radius:12px 12px 0 0;">
-                <div class="cards-footer">
-                    <span>Datum: 20.08.2025</span>
-                    <a href="/static/pictures/test.png" download title="Download">
-                        <img src="/static/icons/download.png" alt="Download Icon" style="width:20px; height:20px; margin-left:10px; vertical-align:middle;">
-                    </a>
-                </div>
-            </div>
-             <div class="cards">
-                <img src="/static/pictures/test.png" alt="Testbild" style="width:100%; border-radius:12px 12px 0 0;">
-                <div class="cards-footer">
-                    <span>Datum: 20.08.2025</span>
-                    <a href="/static/pictures/test.png" download title="Download">
-                        <img src="/static/icons/download.png" alt="Download Icon" style="width:20px; height:20px; margin-left:10px; vertical-align:middle;">
-                    </a>
-                </div>
-            </div>
-             <div class="cards">
-                <img src="/static/pictures/test.png" alt="Testbild" style="width:100%; border-radius:12px 12px 0 0;">
-                <div class="cards-footer">
-                    <span>Kamera1</span>
-                    <span> 20.08.2025</span>
-                    <span>4:00min</span>
-                    <a href="/static/pictures/test.png" download title="Download">
-                        <img src="/static/icons/download.png" alt="Download Icon" style="width:20px; height:20px; margin-left:10px; vertical-align:middle;">
-                    </a>
-                </div>
-            </div>
+            {% endif %}
         </div>
     </div>
 </body>

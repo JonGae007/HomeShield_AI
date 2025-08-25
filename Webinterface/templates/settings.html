@@ -8,21 +8,8 @@
     <title>Dashboard</title>
 </head>
 <script>
-  // --- Daten (Initialwerte); werden in LocalStorage gespeichert ---
-  const STORAGE_KEY = 'hsai:cameras';
-  const DEFAULT_CAMERAS = [
-    { id: 1, name: 'Kamera 1', settings: { resolution: '1920x1080', label: 'Eingang',     ip: '192.168.186.10:80' } },
-    { id: 2, name: 'Kamera 2', settings: { resolution: '1920x1080', label: 'Garage',     ip: '192.168.186.20:80' } },
-    { id: 3, name: 'Kamera 3', settings: { resolution: '1920x1080', label: 'Wohnzimmer', ip: '192.168.186.30:80' } },
-    { id: 4, name: 'Kamera 4', settings: { resolution: '1920x1080', label: 'Außenkamera', ip: '192.168.186.50:80' } },
-  ];
-  const RESOLUTIONS = ['3840x2160','2560x1440','1920x1080','1280x720','640x480'];
-
-  const loadCams = () => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || DEFAULT_CAMERAS; }
-    catch { return DEFAULT_CAMERAS; }
-  };
-  const saveCams = (cams) => localStorage.setItem(STORAGE_KEY, JSON.stringify(cams));
+  // --- Daten aus der Datenbank laden ---
+  let cameras = {{ cameras|tojson }};
 
   function createEl(tag, attrs={}, ...children){
     const n = document.createElement(tag);
@@ -36,12 +23,22 @@
     return n;
   }
 
+  async function loadCameras() {
+    try {
+      const response = await fetch('/api/cameras');
+      cameras = await response.json();
+      renderCameras();
+    } catch (error) {
+      console.error('Fehler beim Laden der Kameras:', error);
+      showToast('Fehler beim Laden der Kameras', 'error');
+    }
+  }
+
   function renderCameras(){
     const container = document.getElementById('cams');
     container.innerHTML = '';
-    const cams = loadCams();
 
-    cams.forEach((cam, index) => {
+    cameras.forEach((cam, index) => {
       const item = createEl('div', { class: 'acc-item', id: `cam-${cam.id}` });
 
       const header = createEl('div', { class: 'acc-header', role:'button', tabindex:0, 'aria-expanded':'false' },
@@ -54,43 +51,39 @@
       const body = createEl('div', { class: 'acc-body' });
       const form = createEl('form', { onsubmit: (e)=>{ e.preventDefault(); handleSave(cam.id, form); } });
 
-      // Row 1: Auflösung + Name
-      const row1 = createEl('div', { class: 'form-row' });
-      const sel = createEl('select', { name: 'resolution' }, ...RESOLUTIONS.map(r=>{
-        const opt = createEl('option', { value: r }, r.replace('x',' × ')); if(r===cam.settings.resolution) opt.selected = true; return opt;
-      }));
+      // Row 1: Auflösung + Name + IP
+      const row1 = createEl('div', { class: 'form-row-triple' });
+      const resolutionInput = createEl('input', { 
+        type: 'text', 
+        name: 'resolution', 
+        value: cam.resolution || '1920x1080',
+        placeholder: '1920x1080'
+      });
       row1.append(
         createEl('div', { class: 'field' },
           createEl('label', {}, 'Auflösung'),
-          sel
+          resolutionInput
         ),
         createEl('div', { class: 'field' },
           createEl('label', {}, 'Name'),
-          createEl('input', { type: 'text', name: 'label', value: cam.settings.label || '' })
-        )
-      );
-
-      // Row 2: IP
-      const row2 = createEl('div', { class: 'form-row' });
-      row2.append(
-        createEl('div', { class: 'field', style: 'grid-column:1 / -1' },
-          createEl('label', {}, 'IP'),
-          createEl('input', { type: 'text', name: 'ip', value: cam.settings.ip || '' })
+          createEl('input', { type: 'text', name: 'name', value: cam.name || '' })
+        ),
+        createEl('div', { class: 'field' },
+          createEl('label', {}, 'IP-Adresse'),
+          createEl('input', { type: 'text', name: 'ip_address', value: cam.ip_address || '', placeholder: '192.168.1.100' })
         )
       );
 
       // Save
       const saveRow = createEl('div', { class: 'save-row' },
+        createEl('button', { type: 'button', class: 'btn btn-danger', onclick: ()=>handleDelete(cam.id) }, 'Löschen'),
         createEl('button', { type: 'submit', class: 'btn btn-primary' }, 'Speichern')
       );
 
-      form.append(row1, row2, saveRow);
+      form.append(row1, saveRow);
       body.append(form);
       item.append(header, body);
       container.append(item);
-
-      // Optional: per Default Kamera 4 offen, Rest zu — wie im Screenshot
-      if(index === cams.length - 1) toggleItem(item, true);
     });
   }
 
@@ -108,25 +101,97 @@
     }
   }
 
-  function handleSave(id, form){
-    const cams = loadCams();
-    const idx = cams.findIndex(c => c.id === id);
+  async function handleSave(id, form){
     const fd = new FormData(form);
-    cams[idx].settings = {
-      resolution: fd.get('resolution'),
-      label: (fd.get('label') || '').trim(),
-      ip: (fd.get('ip') || '').trim(),
+    const data = {
+      name: fd.get('name').trim(),
+      ip_address: fd.get('ip_address').trim(),
+      resolution: fd.get('resolution')
     };
-    saveCams(cams);
-    showToast('Gespeichert');
+
+    try {
+      const response = await fetch(`/api/cameras/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        showToast('Gespeichert', 'success');
+        await loadCameras(); // Neu laden
+      } else {
+        showToast('Fehler beim Speichern', 'error');
+      }
+    } catch (error) {
+      console.error('Fehler beim Speichern:', error);
+      showToast('Fehler beim Speichern', 'error');
+    }
   }
 
-  function showToast(text){
-    const t = document.getElementById('toast');
-    if(!t) return;
+  async function handleDelete(id){
+    if(!confirm('Möchten Sie diese Kamera wirklich löschen?')) return;
+
+    try {
+      const response = await fetch(`/api/cameras/${id}`, {
+        method: 'DELETE'
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        showToast('Kamera gelöscht', 'success');
+        await loadCameras(); // Neu laden
+      } else {
+        showToast('Fehler beim Löschen', 'error');
+      }
+    } catch (error) {
+      console.error('Fehler beim Löschen:', error);
+      showToast('Fehler beim Löschen', 'error');
+    }
+  }
+
+  async function handleAddCamera() {
+    const data = {
+      name: 'Neue Kamera',
+      ip_address: '',
+      resolution: '1920x1080'
+    };
+
+    try {
+      const response = await fetch('/api/cameras', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        showToast('Kamera hinzugefügt', 'success');
+        await loadCameras(); // Neu laden
+      } else {
+        showToast('Fehler beim Hinzufügen', 'error');
+      }
+    } catch (error) {
+      console.error('Fehler beim Hinzufügen:', error);
+      showToast('Fehler beim Hinzufügen', 'error');
+    }
+  }
+
+  function showToast(text, type = 'success'){
+    const t = document.getElementById('toast') || createToast();
     t.textContent = text;
-    t.classList.add('show');
-    setTimeout(()=> t.classList.remove('show'), 1600);
+    t.className = `toast show ${type}`;
+    setTimeout(()=> t.classList.remove('show'), 2000);
+  }
+
+  function createToast() {
+    const toast = createEl('div', { id: 'toast', class: 'toast' });
+    document.body.appendChild(toast);
+    return toast;
   }
 
   document.addEventListener('DOMContentLoaded', renderCameras);
@@ -153,7 +218,10 @@
     <main class="content">
   <h1>Einstellungen</h1>
 <section class="settings-card" aria-label="Kameras">
-  <h2 class="section-title">Kameras</h2>
+  <div class="section-title-wrap">
+    <h2 class="section-title">Kameras</h2>
+    <button class="icon-btn" onclick="handleAddCamera()" title="Neue Kamera hinzufügen">+</button>
+  </div>
   <div id="cams" class="accordion"></div>
 </section>
 </main>

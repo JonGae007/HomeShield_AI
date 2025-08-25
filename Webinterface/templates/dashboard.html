@@ -29,35 +29,59 @@
     </div>
     <div class="content">
         <div class="dashboard-widgets">
+            {% for camera in cameras %}
             <div class="widget">
-                <h3>Camera 1</h3>
-                <img src="http://cam1.local:8080/?action=stream" alt="Camera 1 Live Stream">
+                <h3>{{ camera.name }}
+                    <span class="status-indicator status-{{ camera.status }}">{{ camera.status_text }}</span>
+                </h3>
+                <img src="{{ camera.stream_url }}" alt="{{ camera.name }} Live Stream">
+                <div class="widget-footer">
+                    <img class="camera-icon" src="/static/icons/camera.png" alt="Camera Icon" 
+                         onclick="capturePhoto({{ camera.id }}, '{{ camera.name }}')" 
+                         style="cursor: pointer;" 
+                         title="Foto aufnehmen">
+                </div>
+            </div>
+            {% endfor %}
+            
+            {% if not cameras %}
+            <div class="widget">
+                <h3>Keine Kameras
+                    <span class="status-indicator status-offline">Offline</span>
+                </h3>
+                <p>Es sind noch keine Kameras konfiguriert.</p>
                 <div class="widget-footer">
                     <img class="camera-icon" src="/static/icons/camera.png" alt="Camera Icon">
                 </div>
             </div>
-            <div class="widget">
-                <h3>Camera 2</h3>
-                <img src="/static/pictures/test.png" alt="Camera 2">
-                <div class="widget-footer">
-                    <img class="camera-icon" src="/static/icons/camera.png" alt="Camera Icon">
-                </div>
-            </div>
-            <div class="widget">
-                <h3>Camera 3</h3>
-                <img src="/static/pictures/test.png" alt="Camera 3">
-                <div class="widget-footer">
-                    <img class="camera-icon" src="/static/icons/camera.png" alt="Camera Icon">
-                </div>
-            </div>
-            <div class="widget">
-                <h3>Camera 4</h3>
-                <img src="/static/pictures/test.png" alt="Camera 4">
-                <div class="widget-footer">
-                    <img class="camera-icon" src="/static/icons/camera.png" alt="Camera Icon">
-                </div>
-            </div>
+            {% endif %}
         </div>
     </div>
+    <script>
+        function capturePhoto(cameraId, cameraName) {
+            fetch('/capture_photo', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    camera_id: cameraId,
+                    camera_name: cameraName
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Foto erfolgreich aufgenommen!');
+                } else {
+                    alert('Fehler beim Aufnehmen des Fotos: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Fehler beim Aufnehmen des Fotos.');
+            });
+        }
+    </script>
 </body>
 </html>

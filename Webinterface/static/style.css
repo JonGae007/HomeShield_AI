@@ -211,18 +211,36 @@ footer {
 }
 
 .widget h3::after {
-    content: "Status";
+    content: none; /* Remove the old "Status" text */
+}
+
+/* Status indicators */
+.status-indicator {
     font-size: 16px;
-    color: #CFCFCF;
-    font-weight: 500;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-online {
+    color: #ffffff;
+    background-color: #28a745;
+    box-shadow: 0 0 8px rgba(40, 167, 69, 0.4);
+}
+
+.status-offline {
+    color: #ffffff;
+    background-color: #dc3545;
+    box-shadow: 0 0 8px rgba(220, 53, 69, 0.4);
 }
 
 .widget img {
     width: 100%;
-    height: 200px;
+    aspect-ratio: 16/9;
     object-fit: cover;
     display: block;
-    border-radius: 0 0 8px 8px;
     margin: 0;
 }
 
@@ -299,8 +317,8 @@ footer {
 
 .cards img {
     width: 100%;
-    height: 140px;         /* Bildhöhe begrenzen */
-    object-fit: cover;     /* Bild wird zugeschnitten, falls nötig */
+    aspect-ratio: 16/9;
+    object-fit: cover;
     display: block;
 }
 
@@ -358,10 +376,54 @@ footer {
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
-/* Akkordeon (Kameras 1–4) */
-.accordion { display: flex; flex-direction: column; }
+/* Header row with title on left and + button on right */
+.section-title-wrap { 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    gap: 12px; 
+    padding: 18px 20px; 
+    border-bottom: 1px solid rgba(255,255,255,0.05); 
+    background-color: #232831;
+}
+.section-title-wrap .section-title { 
+    padding: 0; 
+    border: 0; 
+    color: #ffffff;
+    font-size: 20px;
+    font-weight: 600;
+}
+.icon-btn { 
+    display: grid; 
+    place-items: center; 
+    width: 32px; 
+    height: 32px; 
+    border-radius: 8px; 
+    background: #356AE6; 
+    color: #ffffff; 
+    border: none; 
+    font-size: 18px; 
+    line-height: 1; 
+    cursor: pointer; 
+    transition: all 0.2s ease;
+}
+.icon-btn:hover { 
+    background: #2563EB;
+    transform: scale(1.05);
+}
 
-.acc-item { border-bottom: 1px solid rgba(255,255,255,0.06); }
+/* Akkordeon (Kameras 1–4) */
+.accordion { 
+    display: flex; 
+    flex-direction: column; 
+}
+
+.acc-item { 
+    border-bottom: 1px solid rgba(255,255,255,0.06); 
+}
+.acc-item:last-child {
+    border-bottom: none;
+}
 
 .acc-header {
     display: flex;
@@ -370,28 +432,62 @@ footer {
     padding: 18px 20px;
     cursor: pointer;
     background-color: #1D232C;
+    transition: background-color .15s ease;
 }
-.acc-header:hover { background-color: #1A1F27; }
+.acc-header:hover { 
+    background-color: #252B36; 
+}
 
-.acc-title { font-size: 20px; font-weight: 600; }
+.acc-title { 
+    font-size: 18px; 
+    font-weight: 600; 
+    color: #ffffff;
+}
 
 .chev {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     display: grid;
     place-items: center;
-    border-radius: 8px;
+    border-radius: 6px;
     background: #0F1319;
     color: #9AA4B2;
+    font-size: 14px;
+    transition: transform .15s ease;
+}
+.acc-item.open .chev { 
+    transform: rotate(90deg); 
 }
 
-.acc-body { display: none; padding: 20px; background: #232831; }
-.acc-item.open .acc-body { display: block; }
-.acc-item.open .chev { transform: rotate(90deg); }
+.acc-body { 
+    display: none; 
+    padding: 20px; 
+    background: #232831; 
+}
+.acc-item.open .acc-body { 
+    display: block; 
+}
 
 /* Formular-Layout im aufgeklappten Bereich */
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
-.field { display: flex; flex-direction: column; gap: 8px; }
+.form-row { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 18px; 
+    margin-bottom: 18px; 
+}
+
+.form-row-triple { 
+    display: grid; 
+    grid-template-columns: 1fr 2fr 2fr; 
+    gap: 24px; 
+    margin-bottom: 18px; 
+}
+
+.field { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 8px; 
+}
 
 /* Dunkle Inputs/Selects nur innerhalb der Settings-Karte anpassen */
 .settings-card form select,
@@ -400,40 +496,90 @@ footer {
     border: 1px solid #2B3341;
     color: #FFFFFF;
     padding: 12px 14px;
-    border-radius: 10px;
+    border-radius: 8px;
     font-size: 16px;
     outline: none;
     box-shadow: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .settings-card form select:focus,
 .settings-card form input[type="text"]:focus {
-    border-color: #3B82F6;
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.20);
+    border-color: #356AE6;
+    box-shadow: 0 0 0 3px rgba(53,106,230,0.20);
+}
+
+/* Labels */
+.settings-card .field label { 
+    color: #C8D0DB; 
+    font-weight: 600; 
+    font-size: 14px;
+}
+.settings-card .field input[type="text"],
+.settings-card .field select { 
+    width: 100%; 
 }
 
 /* Buttons */
-.btn { appearance: none; border: 0; border-radius: 10px; padding: 12px 18px; font-size: 18px; font-weight: 600; cursor: pointer; }
-.btn-primary { background: #356AE6; color: #FFFFFF; }
-.btn-primary:hover { filter: brightness(1.05); }
+.btn { 
+    appearance: none; 
+    border: 0; 
+    border-radius: 8px; 
+    padding: 10px 16px; 
+    font-size: 14px; 
+    font-weight: 600; 
+    cursor: pointer; 
+    transition: all 0.2s ease;
+}
+.btn-primary { 
+    background: #356AE6; 
+    color: #FFFFFF; 
+}
+.btn-primary:hover { 
+    background: #2563EB; 
+}
+.btn-danger { 
+    background: #DC3545; 
+    color: #FFFFFF; 
+}
+.btn-danger:hover { 
+    background: #C82333; 
+}
 
-.save-row { display: flex; justify-content: flex-end; }
+.save-row { 
+    display: flex; 
+    justify-content: flex-end; 
+    gap: 12px; 
+    margin-top: 20px;
+}
 
-/* Toast für Speicher-Bestätigung */
+/* Toast Notifications */
 .toast {
     position: fixed;
-    right: 24px;
-    bottom: 24px;
-    background: #0F1319;
-    color: #FFFFFF;
-    padding: 12px 16px;
-    border-radius: 10px;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    z-index: 1000;
     opacity: 0;
-    transform: translateY(10px);
-    transition: .25s;
-    z-index: 1200;
+    transform: translateX(100%);
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
 }
-.toast.show { opacity: 1; transform: translateY(0); }
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast.success {
+    background-color: #22C55E;
+}
+
+.toast.error {
+    background-color: #EF4444;
+}
 
 /* Responsiv für kleinere Bildschirme */
 @media (max-width: 880px) {
@@ -441,4 +587,6 @@ footer {
     .sidebar { position: static; width: 100%; height: auto; flex-direction: row; justify-content: space-between; }
     .content { padding: 16px; }
     .form-row { grid-template-columns: 1fr; }
+    .form-row-triple { grid-template-columns: 1fr; }
+    .settings-card { margin: 0 16px; }
 }

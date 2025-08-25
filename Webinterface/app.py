@@ -19,7 +19,9 @@ def generate_daily_secret_key():
 app.secret_key = generate_daily_secret_key()
 
 def get_db_connection():
-    return sqlite3.connect('homeshieldAI.db')
+    # Absoluter Pfad zur Datenbank im gleichen Verzeichnis wie app.py
+    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'homeshieldAI.db')
+    return sqlite3.connect(db_path)
 
 def check_camera_status(ip_address):
     """

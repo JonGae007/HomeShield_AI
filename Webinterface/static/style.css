@@ -164,6 +164,7 @@ footer {
     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     transition: background-color 0.2s ease;
     z-index: 1100;
+    text-decoration: none; /* Entfernt Unterstreichung bei Links */
 }
 
 .topbar img {
@@ -234,6 +235,12 @@ footer {
     color: #ffffff;
     background-color: #dc3545;
     box-shadow: 0 0 8px rgba(220, 53, 69, 0.4);
+}
+
+.status-checking {
+    color: #ffffff;
+    background-color: #ffc107;
+    box-shadow: 0 0 8px rgba(255, 193, 7, 0.4);
 }
 
 .widget img {

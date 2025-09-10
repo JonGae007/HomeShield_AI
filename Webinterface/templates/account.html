@@ -23,14 +23,127 @@
             <p>Created by Raik and Jonas</p>
         </footer>
     </div>
+    <a href="/account" class="topbar">
+        <img src="/static/icons/user.png" alt="User Icon">
+        {{ username }}
+    </a>
     <div class="content">
         <h1>Accountverwaltung</h1>
-      <form> 
-        <input type="text" name="old_password" placeholder="Altes Passwort">
-        <input type="text" name="new_password" placeholder="Neues Passwort">
-        <button type="submit">Passwort ändern</button>
-    
-      </form>
+        
+        <!-- Fehlermeldungen und Erfolgsmeldungen -->
+        {% if error %}
+        <div class="alert alert-error">
+            <span class="alert-icon">⚠️</span>
+            {{ error }}
+        </div>
+        {% endif %}
+        
+        {% if success %}
+        <div class="alert alert-success">
+            <span class="alert-icon">✅</span>
+            {{ success }}
+        </div>
+        {% endif %}
+        
+        <div class="account-container">
+            <!-- Benutzerprofil Sektion -->
+            <div class="account-card">
+                <h2 class="section-title">
+                    <img src="/static/icons/user.png" alt="User Icon" class="section-icon">
+                    Benutzerprofil
+                </h2>
+                <div class="profile-info">
+                    <div class="profile-item">
+                        <label>Benutzername:</label>
+                        <span class="profile-value">{{ username }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Passwort ändern Sektion -->
+            <div class="account-card">
+                <h2 class="section-title">
+                    <img src="/static/icons/settings.png" alt="Settings Icon" class="section-icon">
+                    Passwort ändern
+                </h2>
+                <form method="POST" action="/change_password" class="account-form">
+                    <div class="form-group">
+                        <label for="old_password">Aktuelles Passwort</label>
+                        <input type="password" id="old_password" name="old_password" placeholder="Aktuelles Passwort eingeben" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new_password">Neues Passwort</label>
+                        <input type="password" id="new_password" name="new_password" placeholder="Neues Passwort eingeben" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm_password">Passwort bestätigen</label>
+                        <input type="password" id="confirm_password" name="confirm_password" placeholder="Neues Passwort bestätigen" required>
+                    </div>
+                    <button type="submit" class="btn-account btn-primary">
+                        <img src="/static/icons/settings.png" alt="Save Icon">
+                        Passwort ändern
+                    </button>
+                </form>
+            </div>
+
+            <!-- Account Aktionen Sektion -->
+            <div class="account-card">
+                <h2 class="section-title">
+                    <img src="/static/icons/settings.png" alt="Actions Icon" class="section-icon">
+                    Account Aktionen
+                </h2>
+                <div class="action-buttons">
+                    <a href="/logout" class="btn-account btn-secondary">
+                        <img src="/static/icons/arrow.png" alt="Logout Icon">
+                        Abmelden
+                    </a>
+                    <button type="button" class="btn-account btn-danger" onclick="confirmDeleteAccount()">
+                        <span class="delete-icon">🗑️</span>
+                        Account löschen
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Account Modal -->
+        <div id="deleteModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Account löschen</h3>
+                    <span class="close" onclick="closeDeleteModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <p>⚠️ <strong>Warnung:</strong> Diese Aktion kann nicht rückgängig gemacht werden!</p>
+                    <p>Wenn Sie Ihren Account löschen, werden alle Ihre Daten unwiderruflich gelöscht.</p>
+                    <p>Geben Sie zur Bestätigung Ihr Passwort ein:</p>
+                    <form method="POST" action="/delete_account" id="deleteForm">
+                        <input type="password" name="password" placeholder="Passwort zur Bestätigung" required>
+                        <div class="modal-buttons">
+                            <button type="button" class="btn-account btn-secondary" onclick="closeDeleteModal()">Abbrechen</button>
+                            <button type="submit" class="btn-account btn-danger">Account endgültig löschen</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            function confirmDeleteAccount() {
+                document.getElementById('deleteModal').style.display = 'block';
+            }
+
+            function closeDeleteModal() {
+                document.getElementById('deleteModal').style.display = 'none';
+            }
+
+            // Close modal when clicking outside of it
+            window.onclick = function(event) {
+                const modal = document.getElementById('deleteModal');
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            }
+        </script>
     </div>
 </body>
 </html>

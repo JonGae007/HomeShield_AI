@@ -22,10 +22,10 @@
             <p>Created by Raik and Jonas</p>
         </footer>
     </div>
-    <div class="topbar" href="/account">
+    <a href="/account" class="topbar">
         <img src="/static/icons/user.png" alt="User Icon">
         {{ username }}
-    </div>
+    </a>
     <div class="content">
         <h1>Aufzeichnungen</h1>
         <div class="cards-container">
@@ -34,9 +34,14 @@
                 <img src="/{{ capture.path }}" alt="Aufgenommenes Bild" style="width:100%; border-radius:12px 12px 0 0;">
                 <div class="cards-footer">
                     <span>{{ capture.formatted_date }}</span>
-                    <a href="/{{ capture.path }}" download="{{ capture.filename }}" title="Download">
-                        <img src="/static/icons/download.png" alt="Download Icon" style="width:20px; height:20px; margin-left:10px; vertical-align:middle;">
-                    </a>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <a href="/{{ capture.path }}" download="{{ capture.filename }}" title="Download">
+                            <img src="/static/icons/download.png" alt="Download Icon" style="width:20px; height:20px; vertical-align:middle;">
+                        </a>
+                        <button onclick="deleteCapture({{ capture.id }})" title="Löschen" style="background: none; border: none; cursor: pointer; padding: 0;">
+                            <img src="/static/icons/trash.svg" alt="Delete Icon" style="width:20px; height:20px; vertical-align:middle;">
+                        </button>
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -51,5 +56,31 @@
             {% endif %}
         </div>
     </div>
+
+    <script>
+        function deleteCapture(captureId) {
+            if (confirm('Sind Sie sicher, dass Sie diese Aufnahme löschen möchten?')) {
+                fetch(`/api/captures/${captureId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Seite neu laden um die gelöschte Aufnahme zu entfernen
+                        location.reload();
+                    } else {
+                        alert('Fehler beim Löschen: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Fehler beim Löschen der Aufnahme');
+                });
+            }
+        }
+    </script>
 </body>
 </html>

@@ -70,6 +70,18 @@ body{
     text-align:center;
     width:100%;
 }
+
+.success-message{
+    color:#73D482;
+    font-weight:normal;
+    text-align:center;
+    width:100%;
+    background: rgba(115, 212, 130, 0.1);
+    border: 1px solid #73D482;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
 /* Form */
 .login-form{
   width:100%;

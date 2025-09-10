@@ -23,18 +23,20 @@
             <p>Created by Raik and Jonas</p>
         </footer>
     </div>
-    <div class="topbar" href="/account">
+    <a href="/account" class="topbar">
         <img src="/static/icons/user.png" alt="User Icon">
         {{ username }}
-    </div>
+    </a>
     <div class="content">
         <div class="dashboard-widgets">
             {% for camera in cameras %}
-            <div class="widget">
+            <div class="widget" data-camera-id="{{ camera.id }}">
                 <h3>{{ camera.name }}
                     <span class="status-indicator status-{{ camera.status }}">{{ camera.status_text }}</span>
                 </h3>
-                <img src="{{ camera.stream_url }}" alt="{{ camera.name }} Live Stream">
+                <img src="{{ camera.stream_url }}" alt="{{ camera.name }} Live Stream" 
+                     loading="lazy"
+                     onerror="this.src='/static/pictures/static.png'">
                 <div class="widget-footer">
                     <img class="camera-icon" src="/static/icons/camera.png" alt="Camera Icon" 
                          onclick="capturePhoto({{ camera.id }}, '{{ camera.name }}')" 
@@ -58,7 +60,41 @@
         </div>
     </div>
     <script>
+        // Status-Updates für alle Kameras laden
+        function loadCameraStatuses() {
+            fetch('/api/cameras/status')
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(camera => {
+                    updateCameraStatus(camera.id, camera.status, camera.status_text);
+                });
+            })
+            .catch(error => {
+                console.error('Error loading camera statuses:', error);
+                // Bei Fehler alle als offline markieren
+                document.querySelectorAll('.status-indicator').forEach(indicator => {
+                    indicator.className = 'status-indicator status-offline';
+                    indicator.textContent = 'Offline';
+                });
+            });
+        }
+
+        // Einzelnen Kamera-Status aktualisieren
+        function updateCameraStatus(cameraId, status, statusText) {
+            const statusElement = document.querySelector(`[data-camera-id="${cameraId}"] .status-indicator`);
+            if (statusElement) {
+                statusElement.className = `status-indicator status-${status}`;
+                statusElement.textContent = statusText;
+            }
+        }
+
         function capturePhoto(cameraId, cameraName) {
+            // Button deaktivieren während der Aufnahme
+            const button = event.target;
+            const originalSrc = button.src;
+            button.style.opacity = '0.5';
+            button.style.pointerEvents = 'none';
+            
             fetch('/capture_photo', {
                 method: 'POST',
                 headers: {
@@ -80,8 +116,20 @@
             .catch(error => {
                 console.error('Error:', error);
                 alert('Fehler beim Aufnehmen des Fotos.');
+            })
+            .finally(() => {
+                // Button wieder aktivieren
+                button.style.opacity = '1';
+                button.style.pointerEvents = 'auto';
             });
         }
+
+        // Status beim Laden der Seite abrufen
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCameraStatuses();
+            // Status alle 30 Sekunden aktualisieren
+            setInterval(loadCameraStatuses, 30000);
+        });
     </script>
 </body>
 </html>

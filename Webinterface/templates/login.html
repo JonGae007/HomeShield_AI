@@ -27,6 +27,13 @@
             {{ error|safe }}
         </div>
         {% endif %}
+        
+        {% if message %}
+        <div class="success-message">
+            {{ message|safe }}
+        </div>
+        {% endif %}
+        
         <label for="username" class="label">Benutzername</label>
             <input type="text" id="username" name="username" class="input"/>
 

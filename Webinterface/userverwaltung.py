@@ -2,7 +2,7 @@ import sqlite3
 from getpass import getpass
 import hashlib
 
-connection = sqlite3.connect('homeshieldAI.db')
+connection = sqlite3.connect('Webinterface/homeshieldAI.db')
 cursor = connection.cursor()
 user = input("Enter username: ")
 password = hashlib.sha256(getpass("Enter password: ").encode()).hexdigest()

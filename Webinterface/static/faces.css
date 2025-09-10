@@ -1,4 +1,4 @@
-/* Global improvements for account page */
+/* Global improvements for faces page */
 * {
     box-sizing: border-box;
 }
@@ -7,7 +7,7 @@ html {
     scroll-behavior: smooth;
 }
 
-.account-container {
+.faces-container {
     padding: 24px 32px;
     max-width: 1200px;
     width: 100%;
@@ -56,7 +56,7 @@ html {
     font-size: 18px;
 }
 
-.account-card {
+.faces-card {
     background: #232831;
     border-radius: 16px;
     padding: 32px;
@@ -66,7 +66,7 @@ html {
     transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.account-card:hover {
+.faces-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 20px rgba(0,0,0,0.35);
 }
@@ -87,35 +87,7 @@ html {
     filter: brightness(0) invert(1);
 }
 
-.profile-info {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.profile-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 0;
-    border-bottom: 1px solid #3A424E;
-}
-
-.profile-item:last-child {
-    border-bottom: none;
-}
-
-.profile-item label {
-    color: #8B95A1;
-    font-weight: 500;
-}
-
-.profile-value {
-    color: #fff;
-    font-weight: 600;
-}
-
-.account-form {
+.face-form {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 24px;
@@ -123,7 +95,7 @@ html {
     max-width: 100%;
 }
 
-.account-form .btn-account {
+.face-form .btn-faces {
     grid-column: 1 / -1;
     justify-self: start;
     width: auto;
@@ -165,7 +137,42 @@ html {
     color: #8B95A1;
 }
 
-.btn-account {
+.form-group input[type="file"] {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.form-group select {
+    background: #2C353F;
+    border: 1px solid #3A424E;
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: white;
+    font-size: 16px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.form-group select:focus {
+    border-color: #73D482;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(115, 212, 130, 0.1);
+}
+
+.form-group select option {
+    background: #2C353F;
+    color: white;
+}
+
+.file-info {
+    color: #8B95A1;
+    font-size: 14px;
+    margin-top: 4px;
+}
+
+.btn-faces {
     border: none;
     border-radius: 8px;
     padding: 16px 32px;
@@ -174,9 +181,6 @@ html {
     cursor: pointer;
     transition: all 0.2s;
     margin-top: 16px;
-    width: 100%;
-    max-width: 400px;
-    min-width: 200px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -185,14 +189,17 @@ html {
     box-sizing: border-box;
 }
 
-.btn-account img {
+.btn-faces img {
     width: 16px;
     height: 16px;
     filter: brightness(0);
 }
 
-.delete-icon {
-    font-size: 16px;
+.btn-small {
+    padding: 8px 16px;
+    font-size: 14px;
+    margin-top: 8px;
+    min-width: 120px;
 }
 
 .btn-primary {
@@ -236,17 +243,225 @@ html {
     filter: brightness(0) invert(1);
 }
 
-.action-buttons {
-    display: flex;
-    gap: 15px;
-    align-items: center;
-    flex-wrap: nowrap;
+.delete-icon {
+    font-size: 14px;
 }
 
-.action-buttons .btn-account {
+/* Faces Grid */
+.faces-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 24px;
+    width: 100%;
+}
+
+.face-item {
+    background: #2C353F;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    border: 1px solid #3A424E;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.face-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+}
+
+.face-image-container {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid #3A424E;
+    transition: border-color 0.2s;
+}
+
+.face-item:hover .face-image-container {
+    border-color: #73D482;
+}
+
+.face-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.face-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.face-name {
+    color: #fff;
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.no-faces {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    color: #8B95A1;
+}
+
+.no-faces-icon {
+    width: 64px;
+    height: 64px;
+    opacity: 0.5;
+    margin-bottom: 16px;
+    filter: brightness(0) invert(1);
+}
+
+.no-faces h3 {
+    color: #fff;
+    margin: 16px 0 8px;
+    font-size: 24px;
+}
+
+.no-faces p {
+    font-size: 16px;
+    line-height: 1.5;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* Tab Navigation */
+.tab-navigation {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #3A424E;
+}
+
+.tab-button {
+    background: transparent;
+    border: none;
+    color: #8B95A1;
+    padding: 12px 24px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.tab-button.active {
+    color: #73D482;
+    border-bottom-color: #73D482;
+}
+
+.tab-button:hover {
+    color: #fff;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Camera Preview */
+.camera-preview, .recognition-preview {
+    background: #2C353F;
+    border: 1px solid #3A424E;
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+    margin-bottom: 16px;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.camera-preview img, .recognition-preview img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 8px;
+}
+
+.camera-placeholder {
+    color: #8B95A1;
+    text-align: center;
+}
+
+.camera-placeholder img {
+    width: 48px;
+    height: 48px;
+    opacity: 0.5;
+    margin-bottom: 12px;
+    filter: brightness(0) invert(1);
+}
+
+.camera-placeholder p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.camera-controls, .recognition-controls {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.camera-controls .btn-faces, .recognition-controls .btn-faces {
     flex: 1;
-    max-width: none;
-    min-width: 180px;
+    min-width: 200px;
+}
+
+/* Recognition Form */
+.recognition-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.recognition-result {
+    background: #2C353F;
+    border: 1px solid #3A424E;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 16px;
+}
+
+.recognition-result.success {
+    border-color: #73D482;
+    background: rgba(115, 212, 130, 0.1);
+}
+
+.recognition-result.fail {
+    border-color: #E53E3E;
+    background: rgba(229, 62, 62, 0.1);
+}
+
+.recognition-success h3 {
+    color: #73D482;
+    margin: 0 0 12px 0;
+    font-size: 18px;
+}
+
+.recognition-fail h3 {
+    color: #E53E3E;
+    margin: 0 0 12px 0;
+    font-size: 18px;
+}
+
+.recognition-success p, .recognition-fail p {
+    color: #fff;
+    margin: 8px 0;
+    font-size: 14px;
+}
+
+.recognition-success strong, .recognition-fail strong {
+    color: #8B95A1;
 }
 
 /* Modal Styles */
@@ -327,32 +542,13 @@ html {
     color: #fff;
 }
 
-.modal-body input {
-    background: #2C353F;
-    border: 1px solid #3A424E;
-    border-radius: 8px;
-    padding: 12px 16px;
-    color: white;
-    font-size: 16px;
-    width: 100%;
-    box-sizing: border-box;
-    margin-bottom: 24px;
-    transition: border-color 0.2s;
-}
-
-.modal-body input:focus {
-    border-color: #E53E3E;
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.1);
-}
-
 .modal-buttons {
     display: flex;
     gap: 12px;
     justify-content: flex-end;
 }
 
-.modal-buttons .btn-account {
+.modal-buttons .btn-faces {
     margin-top: 0;
     max-width: none;
     min-width: 120px;
@@ -361,29 +557,28 @@ html {
 
 /* Responsive Design */
 @media (max-width: 768px) {
-    .account-container {
+    .faces-container {
         padding: 16px;
     }
     
-    .account-card {
+    .faces-card {
         padding: 24px;
         margin: 16px 0;
     }
     
-    .account-form {
+    .face-form {
         grid-template-columns: 1fr;
         gap: 16px;
     }
     
-    .action-buttons {
-        flex-direction: row;
-        gap: 12px;
-        flex-wrap: wrap;
+    .faces-grid {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 16px;
     }
     
-    .action-buttons .btn-account {
-        flex: 1;
-        min-width: 140px;
+    .face-image-container {
+        width: 100px;
+        height: 100px;
     }
     
     .modal-content {
@@ -400,40 +595,39 @@ html {
         gap: 12px;
     }
     
-    .modal-buttons .btn-account {
+    .modal-buttons .btn-faces {
         width: 100%;
         max-width: none;
     }
 }
 
 @media (max-width: 480px) {
-    .account-container {
+    .faces-container {
         padding: 12px;
     }
     
-    .account-card {
+    .faces-card {
         padding: 20px;
         margin: 12px 0;
     }
     
-    .account-form {
+    .face-form {
         gap: 12px;
     }
     
-    .btn-account {
+    .btn-faces {
         padding: 14px 24px;
         font-size: 14px;
         min-width: 150px;
     }
     
-    .action-buttons {
-        flex-direction: column;
+    .faces-grid {
+        grid-template-columns: 1fr;
         gap: 12px;
     }
     
-    .action-buttons .btn-account {
-        width: 100%;
-        max-width: none;
-        flex: none;
+    .face-image-container {
+        width: 80px;
+        height: 80px;
     }
 }

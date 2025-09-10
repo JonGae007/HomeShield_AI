@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, request, session, url_for, jsonify
+from flask import Flask, render_template, redirect, request, session, url_for, jsonify, Response
 import sqlite3
 from functools import wraps
 import os
@@ -10,6 +10,13 @@ from urllib.parse import urlparse
 import threading
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import cv2
+import json
+import time
+import base64
+from io import BytesIO
+from PIL import Image
+import numpy as np
 
 app = Flask(__name__)
 
@@ -43,6 +50,109 @@ def generate_daily_secret_key():
     return hashlib.sha256((today + str(random_bytes)).encode()).hexdigest()
 
 app.secret_key = generate_daily_secret_key()
+
+# Gesichtserkennungs-Klasse
+class FaceRecognition:
+    def __init__(self):
+        self.known_faces = []
+        self.known_names = []
+        self.face_detector = None
+        self.load_known_faces()
+        
+    def load_known_faces(self):
+        """Lädt bekannte Gesichter aus der JSON-Datei"""
+        try:
+            faces_json_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+                'Gesichtserkennung', 
+                'bekannte_gesichter.json'
+            )
+            
+            if os.path.exists(faces_json_path):
+                with open(faces_json_path, 'r', encoding='utf-8') as f:
+                    gesichter_daten = json.load(f)
+                    
+                self.known_names = []
+                self.known_faces = []
+                
+                faces_dir = os.path.dirname(faces_json_path)
+                for eintrag in gesichter_daten:
+                    self.known_names.append(eintrag["Name"])
+                    img_path = os.path.join(faces_dir, eintrag["Image"])
+                    self.known_faces.append(img_path)
+                    
+                print(f"Bekannte Gesichter geladen: {self.known_names}")
+        except Exception as e:
+            print(f"Fehler beim Laden der Gesichter: {e}")
+            
+    def recognize_face_deepface(self, image_path):
+        """Erkennt Gesichter mit DeepFace"""
+        try:
+            from deepface import DeepFace
+            
+            best_match_name = None
+            min_distance = float('inf')
+            detector_to_use = 'mtcnn'
+            model_to_use = 'Facenet512'
+            
+            for i, known_img_path in enumerate(self.known_faces):
+                try:
+                    result = DeepFace.verify(
+                        img1_path=image_path, 
+                        img2_path=known_img_path, 
+                        detector_backend=detector_to_use,
+                        model_name=model_to_use,
+                        enforce_detection=True
+                    )
+                    
+                    if result["verified"] and result["distance"] < min_distance:
+                        min_distance = result["distance"]
+                        best_match_name = self.known_names[i]
+                        
+                except Exception as e:
+                    print(f"Fehler beim Vergleichen mit {self.known_names[i]}: {e}")
+                    
+            return {
+                'recognized': best_match_name is not None,
+                'name': best_match_name,
+                'confidence': 1 - min_distance if best_match_name else 0
+            }
+        except ImportError:
+            print("DeepFace nicht installiert. Verwende OpenCV Fallback.")
+            return self.recognize_face_opencv(image_path)
+        except Exception as e:
+            print(f"Fehler bei der Gesichtserkennung: {e}")
+            return {'recognized': False, 'name': None, 'confidence': 0}
+            
+    def recognize_face_opencv(self, image_path):
+        """Fallback Gesichtserkennung mit OpenCV"""
+        try:
+            # Einfache OpenCV-basierte Erkennung als Fallback
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            
+            img = cv2.imread(image_path)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+            
+            if len(faces) > 0:
+                # Für OpenCV-Fallback geben wir "Unbekannte Person" zurück
+                return {
+                    'recognized': True,
+                    'name': 'Unbekannte Person',
+                    'confidence': 0.5
+                }
+            else:
+                return {
+                    'recognized': False,
+                    'name': None,
+                    'confidence': 0
+                }
+        except Exception as e:
+            print(f"Fehler bei OpenCV Gesichtserkennung: {e}")
+            return {'recognized': False, 'name': None, 'confidence': 0}
+
+# Globale Instanz der Gesichtserkennung
+face_recognition = FaceRecognition()
 
 def get_db_connection():
     # Absoluter Pfad zur Datenbank im gleichen Verzeichnis wie app.py
@@ -363,6 +473,39 @@ def account():
     success = request.args.get('success')
     return render_template('account.html', username=username, error=error, success=success)
 
+@app.route('/faces')
+@login_required
+def faces():
+    username = session.get('username', 'Guest')
+    error = request.args.get('error')
+    success = request.args.get('success')
+    
+    # Bekannte Gesichter aus JSON-Datei laden
+    known_faces = []
+    faces_json_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Gesichtserkennung', 'bekannte_gesichter.json')
+    
+    try:
+        import json
+        if os.path.exists(faces_json_path):
+            with open(faces_json_path, 'r', encoding='utf-8') as f:
+                known_faces = json.load(f)
+            
+            # Bilder zu static/faces kopieren für Web-Zugriff
+            static_faces_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'faces')
+            gesicht_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Gesichtserkennung')
+            
+            for face in known_faces:
+                src_path = os.path.join(gesicht_dir, face['Image'])
+                dst_path = os.path.join(static_faces_dir, face['Image'])
+                
+                if os.path.exists(src_path) and not os.path.exists(dst_path):
+                    import shutil
+                    shutil.copy2(src_path, dst_path)
+    except Exception as e:
+        print(f"Fehler beim Laden der Gesichter: {e}")
+    
+    return render_template('faces.html', username=username, known_faces=known_faces, error=error, success=success)
+
 @app.route('/capture_photo', methods=['POST'])
 @login_required
 def capture_photo():
@@ -491,6 +634,283 @@ def delete_account():
         
     except Exception as e:
         return render_template('account.html', username=username, error=f'Fehler beim Löschen des Accounts: {str(e)}')
+
+@app.route('/api/faces', methods=['POST'])
+@login_required
+def add_face():
+    try:
+        from werkzeug.utils import secure_filename
+        import json
+        import shutil
+        
+        if 'image' not in request.files or 'name' not in request.form:
+            return jsonify({'success': False, 'error': 'Bild und Name sind erforderlich'})
+        
+        file = request.files['image']
+        name = request.form['name'].strip()
+        
+        if file.filename == '' or not name:
+            return jsonify({'success': False, 'error': 'Bild und Name sind erforderlich'})
+        
+        # Dateiname sicher machen
+        filename = secure_filename(f"{name}.jpg")
+        
+        # Pfade definieren
+        faces_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Gesichtserkennung')
+        static_faces_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'faces')
+        faces_json_path = os.path.join(faces_dir, 'bekannte_gesichter.json')
+        image_path = os.path.join(faces_dir, filename)
+        static_image_path = os.path.join(static_faces_dir, filename)
+        
+        # Bild speichern (im Gesichtserkennung-Ordner)
+        file.save(image_path)
+        
+        # Bild auch in static/faces kopieren für Web-Zugriff
+        shutil.copy2(image_path, static_image_path)
+        
+        # JSON aktualisieren
+        known_faces = []
+        if os.path.exists(faces_json_path):
+            with open(faces_json_path, 'r', encoding='utf-8') as f:
+                known_faces = json.load(f)
+        
+        # Prüfen ob Name bereits existiert
+        for face in known_faces:
+            if face['Name'].lower() == name.lower():
+                return jsonify({'success': False, 'error': 'Name bereits vorhanden'})
+        
+        # Neues Gesicht hinzufügen
+        known_faces.append({'Name': name, 'Image': filename})
+        
+        with open(faces_json_path, 'w', encoding='utf-8') as f:
+            json.dump(known_faces, f, indent=4, ensure_ascii=False)
+        
+        return jsonify({'success': True, 'message': 'Gesicht erfolgreich hinzugefügt'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Fehler beim Hinzufügen: {str(e)}'})
+
+@app.route('/api/faces/<name>', methods=['DELETE'])
+@login_required
+def delete_face(name):
+    try:
+        import json
+        
+        # Pfade definieren
+        faces_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Gesichtserkennung')
+        static_faces_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'faces')
+        faces_json_path = os.path.join(faces_dir, 'bekannte_gesichter.json')
+        
+        # JSON laden
+        known_faces = []
+        if os.path.exists(faces_json_path):
+            with open(faces_json_path, 'r', encoding='utf-8') as f:
+                known_faces = json.load(f)
+        
+        # Gesicht finden und entfernen
+        face_to_remove = None
+        for i, face in enumerate(known_faces):
+            if face['Name'] == name:
+                face_to_remove = i
+                # Bilder aus beiden Ordnern löschen
+                image_path = os.path.join(faces_dir, face['Image'])
+                static_image_path = os.path.join(static_faces_dir, face['Image'])
+                
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+                if os.path.exists(static_image_path):
+                    os.remove(static_image_path)
+                break
+        
+        if face_to_remove is not None:
+            known_faces.pop(face_to_remove)
+            
+            # JSON aktualisieren
+            with open(faces_json_path, 'w', encoding='utf-8') as f:
+                json.dump(known_faces, f, indent=4, ensure_ascii=False)
+            
+            return jsonify({'success': True, 'message': 'Gesicht erfolgreich gelöscht'})
+        else:
+            return jsonify({'success': False, 'error': 'Gesicht nicht gefunden'})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Fehler beim Löschen: {str(e)}'})
+
+@app.route('/api/camera/<int:camera_id>/capture_face', methods=['POST'])
+@login_required
+def capture_face_from_camera(camera_id):
+    """Nimmt ein Foto von der Kamera auf und speichert es als bekanntes Gesicht"""
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        
+        if not name:
+            return jsonify({'success': False, 'error': 'Name ist erforderlich'})
+        
+        # Kamera-Details aus der Datenbank holen
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT name, ip_address FROM cameras WHERE id=?", (camera_id,))
+        camera_data = cursor.fetchone()
+        connection.close()
+        
+        if not camera_data:
+            return jsonify({'success': False, 'error': 'Kamera nicht gefunden'})
+        
+        camera_name, ip_address = camera_data
+        
+        # Foto von der Kamera aufnehmen
+        image_url = f"http://{ip_address}:8080/?action=snapshot"
+        response = session_requests.get(image_url, timeout=5)
+        
+        if response.status_code != 200:
+            return jsonify({'success': False, 'error': 'Konnte kein Foto von der Kamera aufnehmen'})
+        
+        # Dateiname erstellen
+        from werkzeug.utils import secure_filename
+        filename = secure_filename(f"{name}.jpg")
+        
+        # Pfade definieren
+        faces_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Gesichtserkennung')
+        static_faces_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'faces')
+        faces_json_path = os.path.join(faces_dir, 'bekannte_gesichter.json')
+        image_path = os.path.join(faces_dir, filename)
+        static_image_path = os.path.join(static_faces_dir, filename)
+        
+        # Bild speichern
+        with open(image_path, 'wb') as f:
+            f.write(response.content)
+        
+        # Bild auch in static/faces kopieren
+        import shutil
+        shutil.copy2(image_path, static_image_path)
+        
+        # JSON aktualisieren
+        known_faces = []
+        if os.path.exists(faces_json_path):
+            with open(faces_json_path, 'r', encoding='utf-8') as f:
+                known_faces = json.load(f)
+        
+        # Prüfen ob Name bereits existiert
+        for face in known_faces:
+            if face['Name'].lower() == name.lower():
+                return jsonify({'success': False, 'error': 'Name bereits vorhanden'})
+        
+        # Neues Gesicht hinzufügen
+        known_faces.append({'Name': name, 'Image': filename})
+        
+        with open(faces_json_path, 'w', encoding='utf-8') as f:
+            json.dump(known_faces, f, indent=4, ensure_ascii=False)
+        
+        # Gesichtserkennung aktualisieren
+        face_recognition.load_known_faces()
+        
+        return jsonify({'success': True, 'message': f'Gesicht von {name} erfolgreich über Kamera {camera_name} hinzugefügt'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Fehler beim Aufnehmen des Fotos: {str(e)}'})
+
+@app.route('/api/camera/<int:camera_id>/recognize_face', methods=['POST'])
+@login_required
+def recognize_face_from_camera(camera_id):
+    """Nimmt ein Foto von der Kamera auf und führt Gesichtserkennung durch"""
+    try:
+        # Kamera-Details aus der Datenbank holen
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT name, ip_address FROM cameras WHERE id=?", (camera_id,))
+        camera_data = cursor.fetchone()
+        connection.close()
+        
+        if not camera_data:
+            return jsonify({'success': False, 'error': 'Kamera nicht gefunden'})
+        
+        camera_name, ip_address = camera_data
+        
+        # Foto von der Kamera aufnehmen
+        image_url = f"http://{ip_address}:8080/?action=snapshot"
+        response = session_requests.get(image_url, timeout=5)
+        
+        if response.status_code != 200:
+            return jsonify({'success': False, 'error': 'Konnte kein Foto von der Kamera aufnehmen'})
+        
+        # Temporäres Bild speichern
+        temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp')
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        temp_image_path = os.path.join(temp_dir, f'recognition_{timestamp}.jpg')
+        
+        with open(temp_image_path, 'wb') as f:
+            f.write(response.content)
+        
+        # Gesichtserkennung durchführen
+        result = face_recognition.recognize_face_deepface(temp_image_path)
+        
+        # Temporäres Bild löschen
+        try:
+            os.remove(temp_image_path)
+        except:
+            pass
+        
+        # Pushover-Benachrichtigung senden wenn erkannt und nicht Jonas
+        if result['recognized'] and result['name'] and result['name'] != "Jonas":
+            try:
+                pushover_response = requests.post(
+                    "https://api.pushover.net/1/messages.json",
+                    data={
+                        "token": "ar9c7y6i48rz1tg1jgf1n3q5rd2r1g",
+                        "user": "ur8f5ekr9tca3cnrqdyihvxhrcmntp",
+                        "message": f"Achtung: Person '{result['name']}' von Kamera {camera_name} erkannt!",
+                        "priority": 2,
+                        "sound": "Alarm",
+                        "retry": 30,
+                        "expire": 120
+                    },
+                    files={
+                        "attachment": ("recognition.jpg", response.content, "image/jpeg")
+                    }
+                )
+                print(f"Pushover-Benachrichtigung gesendet: {pushover_response.text}")
+            except Exception as e:
+                print(f"Fehler beim Senden der Pushover-Benachrichtigung: {e}")
+        
+        return jsonify({
+            'success': True,
+            'recognized': result['recognized'],
+            'name': result['name'],
+            'confidence': result['confidence'],
+            'camera': camera_name
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Fehler bei der Gesichtserkennung: {str(e)}'})
+
+@app.route('/api/face_recognition/start/<int:camera_id>', methods=['POST'])
+@login_required
+def start_continuous_recognition(camera_id):
+    """Startet kontinuierliche Gesichtserkennung für eine Kamera"""
+    try:
+        # Hier könntest du einen Background-Thread starten
+        # Für die Demo geben wir erstmal nur eine Bestätigung zurück
+        return jsonify({
+            'success': True,
+            'message': f'Kontinuierliche Gesichtserkennung für Kamera {camera_id} gestartet'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Fehler beim Starten der Erkennung: {str(e)}'})
+
+@app.route('/api/face_recognition/stop/<int:camera_id>', methods=['POST'])
+@login_required
+def stop_continuous_recognition(camera_id):
+    """Stoppt kontinuierliche Gesichtserkennung für eine Kamera"""
+    try:
+        return jsonify({
+            'success': True,
+            'message': f'Kontinuierliche Gesichtserkennung für Kamera {camera_id} gestoppt'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Fehler beim Stoppen der Erkennung: {str(e)}'})
 
 if __name__ == '__main__':
     app.run(debug=True, port=80, host="0.0.0.0")

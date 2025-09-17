@@ -17,7 +17,7 @@
         <ul class="menu">
             <li><a href="/dashboard" class="active"><img src="/static/icons/dashboard.png" alt="Dashboard Icon"> Dashboard</a></li>
             <li><a href="/recordings"><img src="/static/icons/play.png" alt="Recordings Icon"> Aufzeichnungen</a></li>
-            <li><a href="/faces"><img src="/static/icons/face.png" alt="Faces Icon"> Gesichter</a></li>
+            <li><a href="/faces"><img src="/static/icons/face.png" alt="Face Icon"> Gesichter</a></li>
             <li><a href="/settings"><img src="/static/icons/settings.png" alt="Settings Icon"> Einstellungen</a></li>
         </ul>
         <footer>
@@ -33,11 +33,57 @@
             {% for camera in cameras %}
             <div class="widget" data-camera-id="{{ camera.id }}">
                 <h3>{{ camera.name }}
-                    <span class="status-indicator status-{{ camera.status }}">{{ camera.status_text }}</span>
+                    <span class="camera-status" id="status-{{ camera.id }}">
+                        <span class="status-indicator loading" title="Verbindung wird hergestellt..."></span>
+                    </span>
                 </h3>
-                <img src="{{ camera.stream_url }}" alt="{{ camera.name }} Live Stream" 
-                     loading="lazy"
-                     onerror="this.src='/static/pictures/static.png'">
+                <div class="camera-container">
+                    <img id="camera-{{ camera.id }}" 
+                         data-stream-url="{{ camera.stream_url }}" 
+                         alt="{{ camera.name }} Live Stream" 
+                         loading="lazy"
+                         style="display: none;">
+                    <div class="camera-placeholder" id="placeholder-{{ camera.id }}">
+                        <div class="loading-spinner"></div>
+                        <p>Verbindung wird hergestellt...</p>
+                    </div>
+                    <div class="camera-error" id="error-{{ camera.id }}" style="display: none;">
+                        <img src="/static/pictures/static.png" alt="Kamera nicht verfügbar">
+                        <p>Kamera nicht erreichbar</p>
+                        <button class="retry-btn" onclick="retryCamera({{ camera.id }})">Erneut versuchen</button>
+                    </div>
+                </div>
+                
+                <!-- Gesichtserkennung Status -->
+                <div class="face-recognition-status" id="face-status-{{ camera.id }}">
+                    <div class="face-status-header">
+                        <img src="/static/icons/face.png" alt="Face Recognition" class="face-icon">
+                        <span class="face-status-title">Gesichtserkennung</span>
+                        <span class="face-status-indicator" id="face-indicator-{{ camera.id }}">
+                            <span class="status-dot loading"></span>
+                            <span class="status-text">Initialisierung...</span>
+                        </span>
+                    </div>
+                    
+                    <div class="face-detection-info" id="face-info-{{ camera.id }}" style="display: none;">
+                        <!-- Bekannte Gesichter -->
+                        <div class="known-faces" id="known-faces-{{ camera.id }}">
+                            <!-- Wird dynamisch gefüllt -->
+                        </div>
+                        
+                        <!-- Unbekannte Gesichter -->
+                        <div class="unknown-faces" id="unknown-faces-{{ camera.id }}" style="display: none;">
+                            <span class="unknown-count">0</span>
+                            <span class="unknown-text">Unbekannte Gesichter</span>
+                        </div>
+                        
+                        <!-- Keine Gesichter -->
+                        <div class="no-faces" id="no-faces-{{ camera.id }}" style="display: none;">
+                            <span class="no-faces-text">Keine Gesichter erkannt</span>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="widget-footer">
                     <img class="camera-icon" src="/static/icons/camera.png" alt="Camera Icon" 
                          onclick="capturePhoto({{ camera.id }}, '{{ camera.name }}')" 
@@ -49,9 +95,7 @@
             
             {% if not cameras %}
             <div class="widget">
-                <h3>Keine Kameras
-                    <span class="status-indicator status-offline">Offline</span>
-                </h3>
+                <h3>Keine Kameras</h3>
                 <p>Es sind noch keine Kameras konfiguriert.</p>
                 <div class="widget-footer">
                     <img class="camera-icon" src="/static/icons/camera.png" alt="Camera Icon">
@@ -61,32 +105,138 @@
         </div>
     </div>
     <script>
-        // Status-Updates für alle Kameras laden
-        function loadCameraStatuses() {
-            fetch('/api/cameras/status')
-            .then(response => response.json())
-            .then(data => {
-                data.forEach(camera => {
-                    updateCameraStatus(camera.id, camera.status, camera.status_text);
-                });
-            })
-            .catch(error => {
-                console.error('Error loading camera statuses:', error);
-                // Bei Fehler alle als offline markieren
-                document.querySelectorAll('.status-indicator').forEach(indicator => {
-                    indicator.className = 'status-indicator status-offline';
-                    indicator.textContent = 'Offline';
-                });
-            });
+        // Kamera-Management
+        const cameraRetryAttempts = {};
+        const maxRetryAttempts = 3;
+        const retryDelay = 2000; // 2 Sekunden
+
+        function initializeCamera(cameraId) {
+            console.log(`Initializing camera ${cameraId}...`);
+            const img = document.getElementById(`camera-${cameraId}`);
+            const placeholder = document.getElementById(`placeholder-${cameraId}`);
+            const errorDiv = document.getElementById(`error-${cameraId}`);
+            const statusIndicator = document.getElementById(`status-${cameraId}`);
+            
+            if (!img || !placeholder || !errorDiv || !statusIndicator) {
+                console.error(`Camera ${cameraId}: Missing DOM elements`);
+                return;
+            }
+            
+            const streamUrl = img.getAttribute('data-stream-url');
+            console.log(`Camera ${cameraId} stream URL: ${streamUrl}`);
+            
+            // Reset state
+            img.style.display = 'none';
+            placeholder.style.display = 'flex';
+            errorDiv.style.display = 'none';
+            updateCameraStatus(cameraId, 'loading');
+            
+            // Initialize retry counter
+            if (!(cameraId in cameraRetryAttempts)) {
+                cameraRetryAttempts[cameraId] = 0;
+            }
+            
+            // Direct approach: Try to load the stream directly without testing first
+            console.log(`Camera ${cameraId}: Loading stream directly...`);
+            img.src = streamUrl + '&_t=' + Date.now(); // Add timestamp to prevent caching
+            
+            img.onload = function() {
+                console.log(`Camera ${cameraId}: Stream loaded successfully, showing image`);
+                img.style.display = 'block';
+                placeholder.style.display = 'none';
+                errorDiv.style.display = 'none';
+                updateCameraStatus(cameraId, 'online');
+                cameraRetryAttempts[cameraId] = 0; // Reset retry counter
+            };
+            
+            img.onerror = function() {
+                console.log(`Camera ${cameraId}: Stream failed to load directly`);
+                // Try with test image approach as fallback
+                tryWithTestImage(cameraId, img, placeholder, errorDiv, streamUrl);
+            };
+            
+            // Fallback timeout
+            setTimeout(() => {
+                if (placeholder.style.display !== 'none') {
+                    console.log(`Camera ${cameraId}: Direct load timeout, trying test image approach`);
+                    tryWithTestImage(cameraId, img, placeholder, errorDiv, streamUrl);
+                }
+            }, 3000);
         }
 
-        // Einzelnen Kamera-Status aktualisieren
-        function updateCameraStatus(cameraId, status, statusText) {
-            const statusElement = document.querySelector(`[data-camera-id="${cameraId}"] .status-indicator`);
-            if (statusElement) {
-                statusElement.className = `status-indicator status-${status}`;
-                statusElement.textContent = statusText;
+        function tryWithTestImage(cameraId, img, placeholder, errorDiv, streamUrl) {
+            console.log(`Camera ${cameraId}: Trying test image approach...`);
+            
+            // Create a new image element to test the stream
+            const testImg = new Image();
+            
+            testImg.onload = function() {
+                console.log(`Camera ${cameraId}: Test image loaded successfully`);
+                console.log(`Setting main image src to: ${streamUrl}`);
+                cameraRetryAttempts[cameraId] = 0; // Reset retry counter
+                
+                // Show the actual stream
+                img.src = streamUrl + '&_t=' + Date.now();
+                img.style.display = 'block';
+                placeholder.style.display = 'none';
+                errorDiv.style.display = 'none';
+                updateCameraStatus(cameraId, 'online');
+                
+                // Set up error handling for the main image
+                img.onerror = function() {
+                    console.log(`Camera ${cameraId}: Main image error after test success`);
+                    showCameraError(cameraId);
+                };
+            };
+            
+            testImg.onerror = function() {
+                console.log(`Camera ${cameraId}: Test image failed to load`);
+                showCameraError(cameraId);
+            };
+            
+            // Start loading test
+            testImg.src = streamUrl + '&_t=' + Date.now(); // Add timestamp to prevent caching
+        }
+
+        function showCameraError(cameraId) {
+            const img = document.getElementById(`camera-${cameraId}`);
+            const placeholder = document.getElementById(`placeholder-${cameraId}`);
+            const errorDiv = document.getElementById(`error-${cameraId}`);
+            
+            img.style.display = 'none';
+            placeholder.style.display = 'none';
+            errorDiv.style.display = 'flex';
+            updateCameraStatus(cameraId, 'offline');
+            
+            // Auto-retry if under max attempts
+            if (cameraRetryAttempts[cameraId] < maxRetryAttempts) {
+                cameraRetryAttempts[cameraId]++;
+                console.log(`Auto-retrying camera ${cameraId}, attempt ${cameraRetryAttempts[cameraId]}`);
+                
+                setTimeout(() => {
+                    initializeCamera(cameraId);
+                }, retryDelay);
             }
+        }
+
+        function retryCamera(cameraId) {
+            console.log(`Manual retry for camera ${cameraId}`);
+            cameraRetryAttempts[cameraId] = 0; // Reset retry counter for manual retry
+            initializeCamera(cameraId);
+        }
+
+        function updateCameraStatus(cameraId, status) {
+            const statusIndicator = document.querySelector(`#status-${cameraId} .status-indicator`);
+            if (!statusIndicator) return;
+            
+            statusIndicator.className = 'status-indicator ' + status;
+            
+            const titles = {
+                'loading': 'Verbindung wird hergestellt...',
+                'online': 'Kamera online',
+                'offline': 'Kamera offline'
+            };
+            statusIndicator.title = titles[status] || '';
         }
 
         function capturePhoto(cameraId, cameraName) {
@@ -125,12 +275,190 @@
             });
         }
 
-        // Status beim Laden der Seite abrufen
+        // Periodische Überprüfung aller Kameras (alle 30 Sekunden)
+        function checkAllCameras() {
+            const widgets = document.querySelectorAll('.widget[data-camera-id]');
+            widgets.forEach(widget => {
+                const cameraId = widget.getAttribute('data-camera-id');
+                checkCameraStatus(cameraId);
+            });
+        }
+
+        function checkCameraStatus(cameraId) {
+            // Backend-API nutzen für zuverlässige Status-Prüfung
+            fetch(`/api/cameras/${cameraId}/status`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.status === 'online') {
+                        // Kamera ist online, Stream neu initialisieren falls notwendig
+                        const img = document.getElementById(`camera-${cameraId}`);
+                        if (img && img.style.display === 'none') {
+                            console.log(`Camera ${cameraId} is back online, reinitializing...`);
+                            initializeCamera(cameraId);
+                        } else {
+                            updateCameraStatus(cameraId, 'online');
+                        }
+                    } else {
+                        // Kamera ist offline
+                        const img = document.getElementById(`camera-${cameraId}`);
+                        if (img && img.style.display !== 'none') {
+                            console.log(`Camera ${cameraId} went offline`);
+                            showCameraError(cameraId);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error(`Error checking camera ${cameraId} status:`, error);
+                });
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
-            loadCameraStatuses();
-            // Status alle 30 Sekunden aktualisieren
-            setInterval(loadCameraStatuses, 30000);
+            console.log('Dashboard loaded, initializing cameras...');
+            
+            // Initialize all cameras
+            const widgets = document.querySelectorAll('.widget[data-camera-id]');
+            widgets.forEach(widget => {
+                const cameraId = widget.getAttribute('data-camera-id');
+                setTimeout(() => initializeCamera(cameraId), 100 * cameraId); // Staggered initialization
+            });
+            
+            // Set up periodic checks
+            setInterval(checkAllCameras, 30000); // Check every 30 seconds
+            
+            // Initialize face recognition monitoring
+            initializeFaceRecognition();
         });
+        
+        // Face Recognition Functions
+        function initializeFaceRecognition() {
+            console.log('🔍 Initializing face recognition monitoring...');
+            
+            // Start periodic updates for face recognition
+            updateAllFaceStatus();
+            setInterval(updateAllFaceStatus, 3000); // Update every 3 seconds
+        }
+        
+        function updateAllFaceStatus() {
+            fetch('/api/face_monitoring/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const cameras = data.cameras;
+                        
+                        // Update each camera's face recognition status
+                        Object.keys(cameras).forEach(cameraId => {
+                            updateCameraFaceStatus(parseInt(cameraId), cameras[cameraId]);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching face recognition status:', error);
+                });
+        }
+        
+        function updateCameraFaceStatus(cameraId, faceData) {
+            const indicator = document.getElementById(`face-indicator-${cameraId}`);
+            const info = document.getElementById(`face-info-${cameraId}`);
+            const knownFaces = document.getElementById(`known-faces-${cameraId}`);
+            const unknownFaces = document.getElementById(`unknown-faces-${cameraId}`);
+            const noFaces = document.getElementById(`no-faces-${cameraId}`);
+            
+            if (!indicator) return;
+            
+            const statusDot = indicator.querySelector('.status-dot');
+            const statusText = indicator.querySelector('.status-text');
+            
+            // Reset visibility
+            if (info) info.style.display = 'none';
+            if (knownFaces) knownFaces.innerHTML = '';
+            if (unknownFaces) unknownFaces.style.display = 'none';
+            if (noFaces) noFaces.style.display = 'none';
+            
+            if (!faceData.online) {
+                // Kamera offline
+                statusDot.className = 'status-dot offline';
+                statusText.textContent = 'Kamera offline';
+                return;
+            }
+            
+            if (!faceData.status) {
+                // Noch keine Daten
+                statusDot.className = 'status-dot loading';
+                statusText.textContent = 'Analysiere...';
+                return;
+            }
+            
+            // Zeige Info-Bereich
+            if (info) info.style.display = 'block';
+            
+            switch (faceData.status) {
+                case 'no_face':
+                    statusDot.className = 'status-dot no-face';
+                    statusText.textContent = 'Keine Gesichter';
+                    if (noFaces) {
+                        noFaces.style.display = 'block';
+                    }
+                    break;
+                    
+                case 'known_face':
+                    statusDot.className = 'status-dot known-face';
+                    statusText.textContent = 'Bekannte Person';
+                    displayKnownFaces(cameraId, faceData.known_faces || []);
+                    if (faceData.unknown_faces > 0) {
+                        displayUnknownFaces(cameraId, faceData.unknown_faces);
+                    }
+                    break;
+                    
+                case 'unknown_face':
+                    statusDot.className = 'status-dot unknown-face';
+                    statusText.textContent = 'Unbekannte Person';
+                    displayUnknownFaces(cameraId, faceData.unknown_faces || 1);
+                    break;
+                    
+                case 'error':
+                    statusDot.className = 'status-dot offline';
+                    statusText.textContent = 'Fehler';
+                    break;
+                    
+                default:
+                    statusDot.className = 'status-dot loading';
+                    statusText.textContent = 'Analysiere...';
+            }
+        }
+        
+        function displayKnownFaces(cameraId, knownFacesData) {
+            const container = document.getElementById(`known-faces-${cameraId}`);
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            knownFacesData.forEach(face => {
+                const faceItem = document.createElement('div');
+                faceItem.className = 'known-face-item';
+                
+                const confidence = Math.round(face.confidence * 100);
+                
+                faceItem.innerHTML = `
+                    <span class="known-face-name">${face.name}</span>
+                    <span class="face-confidence">${confidence}%</span>
+                `;
+                
+                container.appendChild(faceItem);
+            });
+        }
+        
+        function displayUnknownFaces(cameraId, count) {
+            const container = document.getElementById(`unknown-faces-${cameraId}`);
+            if (!container) return;
+            
+            const countSpan = container.querySelector('.unknown-count');
+            const textSpan = container.querySelector('.unknown-text');
+            
+            if (countSpan) countSpan.textContent = count;
+            if (textSpan) textSpan.textContent = count === 1 ? 'Unbekanntes Gesicht' : 'Unbekannte Gesichter';
+            
+            container.style.display = 'flex';
+        }
     </script>
 </body>
 </html>

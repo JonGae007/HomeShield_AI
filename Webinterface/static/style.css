@@ -211,45 +211,115 @@ footer {
     justify-content: space-between;
 }
 
-.widget h3::after {
-    content: none; /* Remove the old "Status" text */
+/* Kamera-Status und Fehlermeldungen */
+.camera-status {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
 }
 
-/* Status indicators */
 .status-indicator {
-    font-size: 16px;
-    font-weight: 600;
-    padding: 4px 8px;
-    border-radius: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 8px;
 }
 
-.status-online {
-    color: #ffffff;
-    background-color: #28a745;
-    box-shadow: 0 0 8px rgba(40, 167, 69, 0.4);
+.status-indicator.loading {
+    background-color: #FFA500;
+    animation: pulse 2s infinite;
 }
 
-.status-offline {
-    color: #ffffff;
-    background-color: #dc3545;
-    box-shadow: 0 0 8px rgba(220, 53, 69, 0.4);
+.status-indicator.online {
+    background-color: #00FF00;
 }
 
-.status-checking {
-    color: #ffffff;
-    background-color: #ffc107;
-    box-shadow: 0 0 8px rgba(255, 193, 7, 0.4);
+.status-indicator.offline {
+    background-color: #FF4444;
 }
 
-.widget img {
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+
+.camera-container {
+    position: relative;
     width: 100%;
     aspect-ratio: 16/9;
-    object-fit: cover;
-    display: block;
-    margin: 0;
+    background-color: #1a1d23;
+    overflow: hidden;
 }
+
+.camera-container img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.camera-placeholder, .camera-error {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: #1a1d23;
+    color: #CCCCCC;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #333;
+    border-top: 4px solid #007acc;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 12px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.camera-placeholder p, .camera-error p {
+    margin: 8px 0;
+    font-size: 14px;
+    text-align: center;
+}
+
+.retry-btn {
+    background-color: #007acc;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-top: 8px;
+    transition: background-color 0.2s;
+}
+
+.retry-btn:hover {
+    background-color: #005a9e;
+}
+
+.camera-error img {
+    width: 64px;
+    height: 64px;
+    opacity: 0.5;
+    margin-bottom: 8px;
+}
+
+/* Kamera-Images werden über .camera-container img gesteuert */
 
 .widget p {
     font-size: 16px;
@@ -596,4 +666,196 @@ footer {
     .form-row { grid-template-columns: 1fr; }
     .form-row-triple { grid-template-columns: 1fr; }
     .settings-card { margin: 0 16px; }
+}
+/* Face Recognition Styles */
+.face-recognition-status {
+    background: linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 12px;
+    border: 1px solid #4a5568;
+}
+
+.face-status-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.face-icon {
+    width: 18px;
+    height: 18px;
+    opacity: 0.8;
+}
+
+.face-status-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.face-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    font-size: 0.8rem;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.loading {
+    background: #3182ce;
+    animation: pulse 1.5s infinite;
+}
+
+.status-dot.online {
+    background: #38a169;
+}
+
+.status-dot.offline {
+    background: #e53e3e;
+}
+
+.status-dot.no-face {
+    background: #718096;
+}
+
+.status-dot.known-face {
+    background: #38a169;
+}
+
+.status-dot.unknown-face {
+    background: #ed8936;
+}
+
+.status-text {
+    color: #a0aec0;
+}
+
+/* Face Detection Info */
+.face-detection-info {
+    font-size: 0.85rem;
+}
+
+.known-faces {
+    margin-bottom: 8px;
+}
+
+.known-face-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    background: rgba(56, 161, 105, 0.1);
+    border-radius: 6px;
+    margin-bottom: 4px;
+    border-left: 3px solid #38a169;
+}
+
+.known-face-name {
+    font-weight: 500;
+    color: #68d391;
+}
+
+.face-confidence {
+    font-size: 0.75rem;
+    color: #9ae6b4;
+    background: rgba(56, 161, 105, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.unknown-faces {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: rgba(237, 137, 54, 0.1);
+    border-radius: 6px;
+    border-left: 3px solid #ed8936;
+    color: #fbb862;
+}
+
+.unknown-count {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.no-faces {
+    padding: 6px 8px;
+    background: rgba(113, 128, 150, 0.1);
+    border-radius: 6px;
+    border-left: 3px solid #718096;
+    color: #cbd5e0;
+    text-align: center;
+}
+
+/* Face Count Badges */
+.face-count-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.face-count-badge.known {
+    background: rgba(56, 161, 105, 0.2);
+    color: #68d391;
+}
+
+.face-count-badge.unknown {
+    background: rgba(237, 137, 54, 0.2);
+    color: #fbb862;
+}
+
+/* Animations */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.face-detection-info {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Responsive Face Recognition */
+@media (max-width: 768px) {
+    .face-recognition-status {
+        padding: 12px;
+    }
+    
+    .face-status-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .face-status-indicator {
+        margin-left: 0;
+    }
 }

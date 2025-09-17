@@ -29,465 +29,119 @@
         {{ username }}
     </a>
     <div class="content">
-        <h1>Gesichterverwaltung</h1>
-        
-        <!-- Fehlermeldungen und Erfolgsmeldungen -->
-        {% if error %}
-        <div class="alert alert-error">
-            <span class="alert-icon">⚠️</span>
-            {{ error }}
+        <div class="faces-header">
+            <h1>Gesichterverwaltung</h1>
+            <p class="faces-subtitle">Verwalten Sie bekannte Gesichter für die automatische Erkennung</p>
+        </div>
+
+        <!-- Alert Messages -->
+        {% if message %}
+        <div class="alert {% if message_type == 'error' %}alert-error{% else %}alert-success{% endif %}">
+            <span>{{ message }}</span>
         </div>
         {% endif %}
-        
-        {% if success %}
-        <div class="alert alert-success">
-            <span class="alert-icon">✅</span>
-            {{ success }}
-        </div>
-        {% endif %}
-        
-        <div class="faces-container">
-            <!-- Neues Gesicht hinzufügen -->
-            <div class="faces-card">
-                <h2 class="section-title">
-                    <img src="/static/icons/face.png" alt="Add Face Icon" class="section-icon">
-                    Neues Gesicht hinzufügen
-                </h2>
-                
-                <!-- Tab Navigation -->
-                <div class="tab-navigation">
-                    <button class="tab-button active" onclick="switchTab('upload')">Bild hochladen</button>
-                    <button class="tab-button" onclick="switchTab('camera')">Mit Kamera fotografieren</button>
+
+        <!-- Faces Grid -->
+        <div class="faces-grid" id="facesGrid">
+            <!-- Add New Face Card -->
+            <div class="face-card add-face-card" onclick="openAddFaceModal()">
+                <div class="add-face-content">
+                    <div class="add-face-icon">+</div>
+                    <span class="add-face-text">Neues Gesicht</span>
                 </div>
-                
-                <!-- Upload Tab -->
-                <div id="uploadTab" class="tab-content active">
-                    <form id="addFaceForm" class="face-form" enctype="multipart/form-data">
-                        <div class="form-group">
-                            <label for="faceName">Name</label>
-                            <input type="text" id="faceName" name="name" placeholder="Name der Person eingeben" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="faceImage">Bild auswählen</label>
-                            <input type="file" id="faceImage" name="image" accept="image/*" required>
-                            <div class="file-info">Unterstützte Formate: JPG, PNG, GIF</div>
-                        </div>
-                        <button type="submit" class="btn-faces btn-primary">
-                            <img src="/static/icons/face.png" alt="Add Icon">
-                            Gesicht hinzufügen
+            </div>
+
+            <!-- Existing Faces Cards -->
+            {% for face in faces %}
+            <div class="face-card">
+                <div class="face-image-container">
+                    <img src="{{ url_for('static', filename='faces/' + face.image) }}" alt="{{ face.name }}" class="face-image">
+                    <div class="face-overlay">
+                        <button class="face-action-btn edit-btn" onclick="editFace('{{ face.id }}', '{{ face.name }}')">
+                            <span>✎</span>
                         </button>
-                    </form>
+                        <button class="face-action-btn delete-btn" onclick="deleteFace('{{ face.id }}', '{{ face.name }}')">
+                            <span>🗑</span>
+                        </button>
+                    </div>
                 </div>
-                
-                <!-- Camera Tab -->
-                <div id="cameraTab" class="tab-content">
-                    <form id="cameraFaceForm" class="face-form">
+                <div class="face-info">
+                    <h3 class="face-name">{{ face.name }}</h3>
+                    <p class="face-added">Hinzugefügt: {{ face.added_date }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Add Face Modal -->
+    <div id="addFaceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Neues Gesicht hinzufügen</h2>
+                <span class="close" onclick="closeAddFaceModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="add-method-selector">
+                    <button class="method-btn active" id="uploadBtn" onclick="selectMethod('upload')">
+                        <div class="method-icon">📁</div>
+                        <span>Bild hochladen</span>
+                    </button>
+                    <button class="method-btn" id="cameraBtn" onclick="selectMethod('camera')">
+                        <div class="method-icon">📷</div>
+                        <span>Kamerafoto</span>
+                    </button>
+                </div>
+
+                <form id="addFaceForm" action="/add_face" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="faceName">Name der Person:</label>
+                        <input type="text" id="faceName" name="name" required placeholder="Name eingeben...">
+                    </div>
+
+                    <!-- Upload Method -->
+                    <div id="uploadMethod" class="method-content active">
                         <div class="form-group">
-                            <label for="cameraFaceName">Name</label>
-                            <input type="text" id="cameraFaceName" name="name" placeholder="Name der Person eingeben" required>
+                            <label for="faceImage">Foto auswählen:</label>
+                            <div class="file-upload-container">
+                                <input type="file" id="faceImage" name="image" accept="image/*" onchange="previewImage(this)">
+                                <label for="faceImage" class="file-upload-label">
+                                    <span class="upload-icon">📤</span>
+                                    <span class="upload-text">Klicken oder Datei hierher ziehen</span>
+                                </label>
+                            </div>
+                            <div id="imagePreview" class="image-preview"></div>
                         </div>
-                        <div class="form-group">
-                            <label for="cameraSelect">Kamera auswählen</label>
-                            <select id="cameraSelect" name="camera_id" required>
-                                <option value="">Kamera auswählen...</option>
-                            </select>
-                        </div>
-                        <div class="camera-preview">
-                            <img id="cameraPreview" src="" alt="Kamera-Vorschau" style="display: none;">
-                            <div id="cameraPlaceholder" class="camera-placeholder">
-                                <img src="/static/icons/camera.png" alt="Camera">
-                                <p>Wählen Sie eine Kamera aus, um eine Vorschau zu sehen</p>
+                    </div>
+
+                    <!-- Camera Method -->
+                    <div id="cameraMethod" class="method-content">
+                        <div class="camera-container">
+                            <div class="camera-selector">
+                                <label for="cameraSelect">Kamera auswählen:</label>
+                                <select id="cameraSelect" name="camera_id">
+                                    <option value="">Kamera wählen...</option>
+                                    {% for camera in cameras %}
+                                    <option value="{{ camera.id }}">{{ camera.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="camera-preview">
+                                <img id="cameraPreview" src="" alt="Kamera-Vorschau" style="display: none;">
+                                <button type="button" id="captureBtn" onclick="capturePhoto()" style="display: none;">Foto aufnehmen</button>
                             </div>
                         </div>
-                        <div class="camera-controls">
-                            <button type="button" id="refreshPreview" class="btn-faces btn-secondary" onclick="refreshCameraPreview()">
-                                <img src="/static/icons/camera.png" alt="Refresh">
-                                Vorschau aktualisieren
-                            </button>
-                            <button type="submit" class="btn-faces btn-primary">
-                                <img src="/static/icons/camera.png" alt="Capture">
-                                Foto aufnehmen & speichern
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+                    </div>
 
-            <!-- Bekannte Gesichter anzeigen -->
-            <div class="faces-card">
-                <h2 class="section-title">
-                    <img src="/static/icons/user.png" alt="Known Faces Icon" class="section-icon">
-                    Bekannte Gesichter ({{ known_faces|length }})
-                </h2>
-                <div class="faces-grid" id="facesGrid">
-                    {% for face in known_faces %}
-                    <div class="face-item" data-name="{{ face.Name }}">
-                        <div class="face-image-container">
-                            <img src="/static/faces/{{ face.Image }}" alt="{{ face.Name }}" class="face-image" onerror="this.src='/static/icons/user.png'">
-                        </div>
-                        <div class="face-info">
-                            <h3 class="face-name">{{ face.Name }}</h3>
-                            <button class="btn-faces btn-danger btn-small" onclick="deleteFace('{{ face.Name }}')">
-                                <span class="delete-icon">🗑️</span>
-                                Löschen
-                            </button>
-                        </div>
+                    <div class="modal-actions">
+                        <button type="button" onclick="closeAddFaceModal()">Abbrechen</button>
+                        <button type="submit" id="submitBtn">Gesicht hinzufügen</button>
                     </div>
-                    {% endfor %}
-                    
-                    {% if known_faces|length == 0 %}
-                    <div class="no-faces">
-                        <img src="/static/icons/face.png" alt="No Faces" class="no-faces-icon">
-                        <h3>Keine Gesichter gespeichert</h3>
-                        <p>Fügen Sie das erste Gesicht hinzu, um mit der Erkennung zu beginnen.</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Gesichtserkennung testen -->
-            <div class="faces-card">
-                <h2 class="section-title">
-                    <img src="/static/icons/camera.png" alt="Recognition Icon" class="section-icon">
-                    Gesichtserkennung testen
-                </h2>
-                <div class="recognition-form">
-                    <div class="form-group">
-                        <label for="recognitionCamera">Kamera auswählen</label>
-                        <select id="recognitionCamera" name="camera_id" required>
-                            <option value="">Kamera auswählen...</option>
-                        </select>
-                    </div>
-                    <div class="recognition-preview">
-                        <img id="recognitionPreview" src="" alt="Erkennungs-Vorschau" style="display: none;">
-                        <div id="recognitionPlaceholder" class="camera-placeholder">
-                            <img src="/static/icons/camera.png" alt="Camera">
-                            <p>Wählen Sie eine Kamera für die Gesichtserkennung</p>
-                        </div>
-                    </div>
-                    <div class="recognition-controls">
-                        <button type="button" class="btn-faces btn-secondary" onclick="refreshRecognitionPreview()">
-                            <img src="/static/icons/camera.png" alt="Refresh">
-                            Vorschau aktualisieren
-                        </button>
-                        <button type="button" class="btn-faces btn-primary" onclick="performFaceRecognition()">
-                            <img src="/static/icons/face.png" alt="Recognize">
-                            Gesicht erkennen
-                        </button>
-                    </div>
-                    <div id="recognitionResult" class="recognition-result" style="display: none;">
-                        <!-- Erkennungsergebnis wird hier angezeigt -->
-                    </div>
-                </div>
+                </form>
             </div>
         </div>
-
-        <!-- Delete Face Modal -->
-        <div id="deleteFaceModal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Gesicht löschen</h3>
-                    <span class="close" onclick="closeDeleteModal()">&times;</span>
-                </div>
-                <div class="modal-body">
-                    <p>⚠️ <strong>Warnung:</strong> Diese Aktion kann nicht rückgängig gemacht werden!</p>
-                    <p>Möchten Sie das Gesicht von <strong id="faceToDelete"></strong> wirklich löschen?</p>
-                    <div class="modal-buttons">
-                        <button type="button" class="btn-faces btn-secondary" onclick="closeDeleteModal()">Abbrechen</button>
-                        <button type="button" class="btn-faces btn-danger" onclick="confirmDeleteFace()">Löschen</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <script>
-            let currentFaceToDelete = null;
-            let cameras = [];
-
-            // Beim Laden der Seite Kameras laden
-            document.addEventListener('DOMContentLoaded', function() {
-                loadCameras();
-            });
-
-            // Kameras laden
-            async function loadCameras() {
-                try {
-                    const response = await fetch('/api/cameras');
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        cameras = result.cameras;
-                        updateCameraSelects();
-                    }
-                } catch (error) {
-                    console.error('Fehler beim Laden der Kameras:', error);
-                }
-            }
-
-            // Kamera-Dropdowns aktualisieren
-            function updateCameraSelects() {
-                const cameraSelect = document.getElementById('cameraSelect');
-                const recognitionCamera = document.getElementById('recognitionCamera');
-                
-                [cameraSelect, recognitionCamera].forEach(select => {
-                    select.innerHTML = '<option value="">Kamera auswählen...</option>';
-                    cameras.forEach(camera => {
-                        const option = document.createElement('option');
-                        option.value = camera.id;
-                        option.textContent = `${camera.name} (${camera.ip_address})`;
-                        select.appendChild(option);
-                    });
-                });
-            }
-
-            // Tab-Funktionalität
-            function switchTab(tabName) {
-                // Tab-Buttons aktualisieren
-                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-                document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
-                
-                // Tab-Content aktualisieren
-                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-                document.getElementById(tabName + 'Tab').classList.add('active');
-            }
-
-            // Kamera-Vorschau aktualisieren
-            function refreshCameraPreview() {
-                const cameraId = document.getElementById('cameraSelect').value;
-                if (!cameraId) {
-                    showAlert('Bitte wählen Sie eine Kamera aus', 'error');
-                    return;
-                }
-                
-                const camera = cameras.find(c => c.id == cameraId);
-                if (camera) {
-                    const previewImg = document.getElementById('cameraPreview');
-                    const placeholder = document.getElementById('cameraPlaceholder');
-                    
-                    previewImg.src = `http://${camera.ip_address}:8080/?action=snapshot&t=${Date.now()}`;
-                    previewImg.style.display = 'block';
-                    placeholder.style.display = 'none';
-                }
-            }
-
-            // Erkennungs-Vorschau aktualisieren
-            function refreshRecognitionPreview() {
-                const cameraId = document.getElementById('recognitionCamera').value;
-                if (!cameraId) {
-                    showAlert('Bitte wählen Sie eine Kamera aus', 'error');
-                    return;
-                }
-                
-                const camera = cameras.find(c => c.id == cameraId);
-                if (camera) {
-                    const previewImg = document.getElementById('recognitionPreview');
-                    const placeholder = document.getElementById('recognitionPlaceholder');
-                    
-                    previewImg.src = `http://${camera.ip_address}:8080/?action=snapshot&t=${Date.now()}`;
-                    previewImg.style.display = 'block';
-                    placeholder.style.display = 'none';
-                }
-            }
-
-            // Gesichtserkennung durchführen
-            async function performFaceRecognition() {
-                const cameraId = document.getElementById('recognitionCamera').value;
-                if (!cameraId) {
-                    showAlert('Bitte wählen Sie eine Kamera aus', 'error');
-                    return;
-                }
-
-                const button = document.querySelector('[onclick="performFaceRecognition()"]');
-                const originalText = button.innerHTML;
-                button.disabled = true;
-                button.innerHTML = '<img src="/static/icons/face.png" alt="Loading"> Erkenne Gesicht...';
-
-                try {
-                    const response = await fetch(`/api/camera/${cameraId}/recognize_face`, {
-                        method: 'POST'
-                    });
-                    
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        displayRecognitionResult(result);
-                    } else {
-                        showAlert(result.error, 'error');
-                    }
-                } catch (error) {
-                    showAlert('Fehler bei der Gesichtserkennung', 'error');
-                } finally {
-                    button.disabled = false;
-                    button.innerHTML = originalText;
-                }
-            }
-
-            // Erkennungsergebnis anzeigen
-            function displayRecognitionResult(result) {
-                const resultDiv = document.getElementById('recognitionResult');
-                
-                if (result.recognized) {
-                    resultDiv.innerHTML = `
-                        <div class="recognition-success">
-                            <h3>✅ Gesicht erkannt!</h3>
-                            <p><strong>Person:</strong> ${result.name}</p>
-                            <p><strong>Vertrauen:</strong> ${(result.confidence * 100).toFixed(1)}%</p>
-                            <p><strong>Kamera:</strong> ${result.camera}</p>
-                        </div>
-                    `;
-                    resultDiv.className = 'recognition-result success';
-                } else {
-                    resultDiv.innerHTML = `
-                        <div class="recognition-fail">
-                            <h3>❌ Kein bekanntes Gesicht erkannt</h3>
-                            <p>Die Person wurde nicht in der Datenbank gefunden.</p>
-                        </div>
-                    `;
-                    resultDiv.className = 'recognition-result fail';
-                }
-                
-                resultDiv.style.display = 'block';
-            }
-
-            // Formular für neues Gesicht (Upload)
-            document.getElementById('addFaceForm').addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                const formData = new FormData(this);
-                const submitButton = this.querySelector('button[type="submit"]');
-                
-                submitButton.disabled = true;
-                submitButton.innerHTML = '<img src="/static/icons/face.png" alt="Loading"> Wird hinzugefügt...';
-                
-                try {
-                    const response = await fetch('/api/faces', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        window.location.href = '/faces?success=' + encodeURIComponent(result.message);
-                    } else {
-                        showAlert(result.error, 'error');
-                    }
-                } catch (error) {
-                    showAlert('Fehler beim Hinzufügen des Gesichts', 'error');
-                } finally {
-                    submitButton.disabled = false;
-                    submitButton.innerHTML = '<img src="/static/icons/face.png" alt="Add Icon"> Gesicht hinzufügen';
-                }
-            });
-
-            // Formular für Kamera-Foto
-            document.getElementById('cameraFaceForm').addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                const cameraId = document.getElementById('cameraSelect').value;
-                const name = document.getElementById('cameraFaceName').value.trim();
-                
-                if (!cameraId || !name) {
-                    showAlert('Bitte wählen Sie eine Kamera aus und geben Sie einen Namen ein', 'error');
-                    return;
-                }
-                
-                const submitButton = this.querySelector('button[type="submit"]');
-                submitButton.disabled = true;
-                submitButton.innerHTML = '<img src="/static/icons/camera.png" alt="Loading"> Nehme Foto auf...';
-                
-                try {
-                    const response = await fetch(`/api/camera/${cameraId}/capture_face`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ name: name })
-                    });
-                    
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        window.location.href = '/faces?success=' + encodeURIComponent(result.message);
-                    } else {
-                        showAlert(result.error, 'error');
-                    }
-                } catch (error) {
-                    showAlert('Fehler beim Aufnehmen des Fotos', 'error');
-                } finally {
-                    submitButton.disabled = false;
-                    submitButton.innerHTML = '<img src="/static/icons/camera.png" alt="Capture"> Foto aufnehmen & speichern';
-                }
-            });
-
-            // Gesicht löschen
-            function deleteFace(name) {
-                currentFaceToDelete = name;
-                document.getElementById('faceToDelete').textContent = name;
-                document.getElementById('deleteFaceModal').style.display = 'block';
-            }
-
-            async function confirmDeleteFace() {
-                if (!currentFaceToDelete) return;
-                
-                try {
-                    const response = await fetch(`/api/faces/${encodeURIComponent(currentFaceToDelete)}`, {
-                        method: 'DELETE'
-                    });
-                    
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        window.location.href = '/faces?success=' + encodeURIComponent(result.message);
-                    } else {
-                        showAlert(result.error, 'error');
-                        closeDeleteModal();
-                    }
-                } catch (error) {
-                    showAlert('Fehler beim Löschen des Gesichts', 'error');
-                    closeDeleteModal();
-                }
-            }
-
-            function closeDeleteModal() {
-                document.getElementById('deleteFaceModal').style.display = 'none';
-                currentFaceToDelete = null;
-            }
-
-            // Alert anzeigen
-            function showAlert(message, type) {
-                const alertClass = type === 'error' ? 'alert-error' : 'alert-success';
-                const icon = type === 'error' ? '⚠️' : '✅';
-                
-                const alertDiv = document.createElement('div');
-                alertDiv.className = `alert ${alertClass}`;
-                alertDiv.innerHTML = `
-                    <span class="alert-icon">${icon}</span>
-                    ${message}
-                `;
-                
-                const content = document.querySelector('.content');
-                const existingAlert = content.querySelector('.alert');
-                if (existingAlert) {
-                    existingAlert.remove();
-                }
-                
-                content.insertBefore(alertDiv, content.firstElementChild.nextElementSibling);
-                
-                // Alert nach 5 Sekunden ausblenden
-                setTimeout(() => {
-                    alertDiv.remove();
-                }, 5000);
-            }
-
-            // Modal schließen bei Klick außerhalb
-            window.onclick = function(event) {
-                const modal = document.getElementById('deleteFaceModal');
-                if (event.target == modal) {
-                    closeDeleteModal();
-                }
-            }
-        </script>
     </div>
+
+    <script src="{{ url_for('static', filename='faces.js') }}"></script>
 </body>
 </html>

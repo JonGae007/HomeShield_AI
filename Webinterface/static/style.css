@@ -211,45 +211,9 @@ footer {
     justify-content: space-between;
 }
 
-.widget h3::after {
-    content: none; /* Remove the old "Status" text */
-}
 
-/* Status indicators */
-.status-indicator {
-    font-size: 16px;
-    font-weight: 600;
-    padding: 4px 8px;
-    border-radius: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
 
-.status-online {
-    color: #ffffff;
-    background-color: #28a745;
-    box-shadow: 0 0 8px rgba(40, 167, 69, 0.4);
-}
-
-.status-offline {
-    color: #ffffff;
-    background-color: #dc3545;
-    box-shadow: 0 0 8px rgba(220, 53, 69, 0.4);
-}
-
-.status-checking {
-    color: #ffffff;
-    background-color: #ffc107;
-    box-shadow: 0 0 8px rgba(255, 193, 7, 0.4);
-}
-
-.widget img {
-    width: 100%;
-    aspect-ratio: 16/9;
-    object-fit: cover;
-    display: block;
-    margin: 0;
-}
+/* Kamera-Images werden über .camera-container img gesteuert */
 
 .widget p {
     font-size: 16px;
@@ -298,6 +262,235 @@ footer {
     height: 24px;
     padding: 2px;
     background: transparent;
+}
+
+/* Kamera-Status und Fehlermeldungen */
+.camera-status {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 8px;
+}
+
+.status-indicator.loading {
+    background-color: #FFA500;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.online {
+    background-color: #00FF00;
+}
+
+.status-indicator.offline {
+    background-color: #FF4444;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+
+.camera-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16/9;
+    background-color: #1a1d23;
+    overflow: hidden;
+}
+
+.camera-container img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.camera-placeholder, .camera-error {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: #1a1d23;
+    color: #CCCCCC;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #333;
+    border-top: 4px solid #007acc;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 12px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.camera-placeholder p, .camera-error p {
+    margin: 8px 0;
+    font-size: 14px;
+    text-align: center;
+}
+
+.retry-btn {
+    background-color: #007acc;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-top: 8px;
+    transition: background-color 0.2s;
+}
+
+.retry-btn:hover {
+    background-color: #005a9e;
+}
+
+.camera-error img {
+    width: 64px;
+    height: 64px;
+    opacity: 0.5;
+    margin-bottom: 8px;
+}
+
+/* Gesichter-Seite Styles */
+.faces-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr auto;
+    gap: 24px;
+    padding: 16px 24px 40px 0;
+    height: calc(100vh - 120px);
+}
+
+.faces-section {
+    background-color: #232831;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.faces-section:last-child {
+    grid-column: 1 / -1;
+    height: fit-content;
+}
+
+.faces-section h2 {
+    margin: 0 0 16px 0;
+    color: #FFFFFF;
+    font-size: 18px;
+    font-weight: 600;
+    border-bottom: 2px solid #1F2630;
+    padding-bottom: 8px;
+}
+
+.known-faces-grid,
+.unknown-faces-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 16px;
+    min-height: 200px;
+}
+
+.face-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: #1a1d23;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    color: #CCCCCC;
+    border: 2px dashed #444;
+}
+
+.face-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    opacity: 0.6;
+}
+
+.face-placeholder p {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    color: #999;
+}
+
+.add-face-btn {
+    background-color: #007acc;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.add-face-btn:hover {
+    background-color: #005a9e;
+}
+
+.face-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.setting-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background-color: #1a1d23;
+    border-radius: 8px;
+    color: #FFFFFF;
+}
+
+.setting-item label {
+    font-size: 14px;
+    color: #CCCCCC;
+    flex: 1;
+}
+
+.setting-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #007acc;
+}
+
+.setting-item input[type="range"] {
+    flex: 0 0 150px;
+    margin-right: 12px;
+    accent-color: #007acc;
+}
+
+.range-value {
+    font-size: 14px;
+    color: #007acc;
+    font-weight: 600;
+    min-width: 40px;
+    text-align: right;
 }
 
 .cards-container {

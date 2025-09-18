@@ -46,6 +46,267 @@ input[type="text"], input[type="password"] {
     font-size: 16px;
 }
 
+/* Gesichtserkennung Styles */
+.face-recognition-overview {
+    background: #1e2328;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid #3a3f47;
+}
+
+.face-stats-widget h3 {
+    color: #fff;
+    margin-bottom: 15px;
+    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.face-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.stat-item {
+    text-align: center;
+    background: #2a2f36;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #3a3f47;
+}
+
+.stat-number {
+    display: block;
+    font-size: 2em;
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 5px;
+}
+
+.stat-number.known { color: #4CAF50; }
+.stat-number.unknown { color: #f44336; }
+
+.stat-label {
+    font-size: 0.8em;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.recent-detections h4 {
+    color: #fff;
+    margin-bottom: 10px;
+    font-size: 1em;
+    border-bottom: 1px solid #3a3f47;
+    padding-bottom: 8px;
+}
+
+#recent-detections-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.detection-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    margin-bottom: 5px;
+    border-radius: 6px;
+    background: #2a2f36;
+    border-left: 3px solid #4CAF50;
+    font-size: 0.9em;
+}
+
+.detection-item.unknown {
+    border-left-color: #f44336;
+}
+
+.detection-name {
+    font-weight: 600;
+    color: #fff;
+}
+
+.detection-confidence {
+    color: #aaa;
+    font-size: 0.85em;
+}
+
+.detection-time {
+    color: #888;
+    font-size: 0.8em;
+}
+
+.no-detections {
+    text-align: center;
+    color: #666;
+    padding: 20px;
+    font-style: italic;
+}
+
+/* Monitoring Widget Styles */
+.monitoring-widget {
+    background: #1e2328;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 20px;
+    border: 1px solid #3a3f47;
+}
+
+.monitoring-widget h3 {
+    color: #fff;
+    margin-bottom: 15px;
+    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.monitoring-status {
+    background: #2a2f36;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #3a3f47;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.online {
+    background-color: #4CAF50;
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.3);
+}
+
+.status-dot.offline {
+    background-color: #f44336;
+    box-shadow: 0 0 8px rgba(244, 67, 54, 0.3);
+}
+
+.status-dot.loading {
+    background-color: #ff9800;
+    animation: pulse 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+    from { opacity: 1; }
+    to { opacity: 0.5; }
+}
+
+.status-text {
+    font-weight: 600;
+    color: #fff;
+}
+
+.monitoring-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.info-label {
+    color: #aaa;
+    font-size: 0.9em;
+}
+
+.info-value {
+    color: #fff;
+    font-weight: 500;
+}
+
+.monitoring-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.monitoring-controls .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.btn.btn-primary {
+    background: #4CAF50;
+    color: white;
+}
+
+.btn.btn-primary:hover {
+    background: #45a049;
+}
+
+.btn.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn.btn-secondary:hover {
+    background: #5a6268;
+}
+
+.btn.btn-small {
+    padding: 6px 12px;
+    font-size: 0.8em;
+}
+
+.interval-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.interval-control label {
+    color: #aaa;
+    font-size: 0.9em;
+    margin: 0;
+}
+
+.interval-control input {
+    width: 80px;
+    padding: 6px 8px;
+    border: 1px solid #3a3f47;
+    border-radius: 4px;
+    background: #232831;
+    color: #fff;
+    font-size: 0.9em;
+}
+
+.interval-control input:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 4px rgba(76, 175, 80, 0.3);
+}
+
 input[type="submit"] {
     background-color: #28a745;
     color: #FFFFFF;

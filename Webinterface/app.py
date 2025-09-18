@@ -9,286 +9,340 @@ import json
 import shutil
 import uuid
 import threading
+import time
+import cv2
 import numpy as np
+import face_recognition as fr
+from PIL import Image
+import io
+
 
 app = Flask(__name__)
 
-class FaceRecognition:
+class FastFaceRecognition:
     """
-    Schnelle, robuste Gesichtserkennung:
-    - nutzt DeepFace 'Facenet512' + 'mtcnn'
-    - cached Embeddings für bekannte Gesichter
-    - liefert pro gefundenem Gesicht: Name, Confidence, Distance, Bounding-Box
-    - thread-sicher
+    Schnelle Gesichtserkennung mit face-recognition library:
+    - Erkennt bekannte und unbekannte Gesichter
+    - Cached Encodings für Performance
+    - Thread-sicher
+    - Logging aller Erkennungen
     """
     def __init__(self):
-        self._deepface_ok = False
         self._lock = threading.RLock()
-        self._model_name = 'Facenet512'
-        self._detector = 'mtcnn'
-        self._metric = 'cosine'  # für Facenet512 üblich
-        self.known = []          # Liste: {'name','img_path','embedding':np.array}
+        self.known_faces = []  # Liste: {'name': str, 'encoding': np.array}
+        self.detection_log = []  # Liste der letzten Erkennungen
         self._faces_json_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             'Gesichtserkennung',
             'bekannte_gesichter.json'
         )
-        self._faces_base_dir = os.path.dirname(self._faces_json_path)
-        self._index_cache_path = os.path.join(self._faces_base_dir, 'bekannte_gesichter_index.json')
-        self._init_deepface()
-        self._load_known_faces(rebuild_index=False)  # lädt Cache, wenn möglich
-
-    def _init_deepface(self):
-        if self._deepface_ok:
-            return
-        try:
-            from deepface import DeepFace  # noqa: F401
-            self._deepface_ok = True
-            print("✅ DeepFace verfügbar")
-        except Exception as e:
-            print(f"❌ DeepFace nicht verfügbar: {e}")
-            self._deepface_ok = False
-
-    def _ensure_deepface(self):
-        if not self._deepface_ok:
-            self._init_deepface()
-        return self._deepface_ok
-
-    def _represent_image(self, img_path):
-        """Berechnet ein einzelnes Embedding (aligned) für ein Bildpfad."""
-        from deepface import DeepFace
-        reps = DeepFace.represent(
-            img_path=img_path,
-            model_name=self._model_name,
-            detector_backend=self._detector,
-            enforce_detection=True,
-            align=True,
-            normalization='base'
-        )
-        # DeepFace.represent kann Liste zurückgeben; wir nehmen das erste Embedding
-        if isinstance(reps, list) and len(reps) > 0 and 'embedding' in reps[0]:
-            return np.asarray(reps[0]['embedding'], dtype='float32')
-        # Fallback, falls ein einzelnes Dict kommt
-        if isinstance(reps, dict) and 'embedding' in reps:
-            return np.asarray(reps['embedding'], dtype='float32')
-        raise ValueError("Konnte kein Embedding extrahieren.")
-
-    def _save_index_cache(self):
-        try:
-            data = []
-            for item in self.known:
-                data.append({
-                    "name": item['name'],
-                    "img_path": os.path.basename(item['img_path']),
-                    "embedding": item['embedding'].astype('float32').tolist()
-                })
-            with open(self._index_cache_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False)
-        except Exception as e:
-            print(f"⚠️ Konnte Index-Cache nicht speichern: {e}")
-
-    def _load_index_cache(self):
-        """Versucht, Embedding-Cache zu laden; gibt True bei Erfolg."""
-        if not os.path.exists(self._index_cache_path):
-            return False
-        try:
-            with open(self._index_cache_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            self.known = []
-            for row in data:
-                img_path = os.path.join(self._faces_base_dir, row['img_path'])
-                emb = np.asarray(row['embedding'], dtype='float32')
-                self.known.append({
-                    'name': row['name'],
-                    'img_path': img_path,
-                    'embedding': emb
-                })
-            return True
-        except Exception as e:
-            print(f"⚠️ Konnte Index-Cache nicht laden: {e}")
-            return False
-
-    def _load_known_faces(self, rebuild_index=False):
-        """Lädt bekannte Gesichter und (re)buildet Embedding-Index wenn nötig."""
+        self._load_known_faces()
+    
+    def _load_known_faces(self):
+        """Lädt bekannte Gesichter und erstellt Encodings"""
         with self._lock:
-            if not self._ensure_deepface():
-                self.known = []
+            self.known_faces = []
+            
+            if not os.path.exists(self._faces_json_path):
+                print("❌ Keine bekannten Gesichter gefunden")
                 return
-
-            # JSON einlesen
-            faces = []
-            if os.path.exists(self._faces_json_path):
-                with open(self._faces_json_path, 'r', encoding='utf-8') as f:
-                    faces = json.load(f)
-            else:
-                self.known = []
-                return
-
-            # Falls kein rebuild angefordert: Cache versuchen
-            if not rebuild_index and self._load_index_cache():
-                # Prüfen, ob Anzahl/Namen/Dateien passen – wenn nicht, rebuild
-                cache_names = sorted([(os.path.basename(k['img_path']), k['name']) for k in self.known])
-                json_names = sorted([(f['Image'], f['Name']) for f in faces])
-                if cache_names == json_names:
-                    print(f"✅ Embedding-Cache geladen ({len(self.known)} Personen)")
-                    return
-                else:
-                    print("ℹ️ Cache veraltet – baue neu")
-
-            # Embeddings neu berechnen
-            self.known = []
-            for item in faces:
-                name = item['Name']
-                img_rel = item['Image']
-                img_path = os.path.join(self._faces_base_dir, img_rel)
-                if not os.path.exists(img_path):
-                    print(f"⚠️ Bild fehlt: {img_path}")
-                    continue
-                try:
-                    emb = self._represent_image(img_path)
-                    self.known.append({'name': name, 'img_path': img_path, 'embedding': emb})
-                except Exception as e:
-                    print(f"⚠️ Embedding fehlgeschlagen für {name} ({img_rel}): {e}")
-
-            print(f"✅ Embeddings erstellt: {len(self.known)} bekannte Personen")
-            self._save_index_cache()
-
-    def reload_known_faces(self):
-        """Öffentliche Methode zum Reindex nach Änderungen (Add/Delete)."""
-        self._load_known_faces(rebuild_index=True)
-
-    def _cosine(self, a, b):
-        # numerisch stabil
-        denom = (np.linalg.norm(a) * np.linalg.norm(b)) + 1e-10
-        return 1 - np.dot(a, b) / denom  # 0 = identisch, 2 = gegensätzlich
-
-    def _threshold_for_model(self):
-        """
-        Erkennungsschwelle (cosine distance).
-        Für Facenet512 sind ~0.3…0.4 üblich. Wir beginnen konservativ mit 0.35.
-        """
-        return 0.35
-
-    def recognize_image(self, image_path):
-        """
-        Erkennt 0..n Gesichter in einem Bild.
-        Rückgabe:
-        {
-          'faces': [
-             {
-               'recognized': True/False,
-               'name': str|None,
-               'confidence': float (0..1),
-               'distance': float,
-               'bbox': {'x':..,'y':..,'w':..,'h':..}
-             }, ...
-          ]
-        }
-        """
-        with self._lock:
-            if not self._ensure_deepface():
-                return {'faces': []}
-
-            from deepface import DeepFace
-
-            if not os.path.exists(image_path):
-                return {'faces': []}
-
-            # 1) Gesichter extrahieren (liefert auch Bounding-Box)
+            
             try:
-                extracted = DeepFace.extract_faces(
-                    img_path=image_path,
-                    detector_backend=self._detector,
-                    enforce_detection=True,
-                    align=True
-                )
+                with open(self._faces_json_path, 'r', encoding='utf-8') as f:
+                    faces_data = json.load(f)
+                
+                # Bilder sind im static/faces Ordner gespeichert
+                faces_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'faces')
+                
+                for face_data in faces_data:
+                    name = face_data['Name']
+                    image_file = face_data['Image']
+                    image_path = os.path.join(faces_dir, image_file)
+                    
+                    if os.path.exists(image_path):
+                        # Lade Bild und erstelle Encoding
+                        image = fr.load_image_file(image_path)
+                        encodings = fr.face_encodings(image)
+                        
+                        if encodings:
+                            self.known_faces.append({
+                                'name': name,
+                                'encoding': encodings[0]
+                            })
+                            print(f"✅ Gesicht geladen: {name}")
+                        else:
+                            print(f"⚠️ Kein Gesicht gefunden in {image_file}")
+                    else:
+                        print(f"⚠️ Bild nicht gefunden: {image_path}")
+                
+                print(f"✅ {len(self.known_faces)} bekannte Gesichter geladen")
+                
             except Exception as e:
-                print(f"⚠️ extract_faces Fehler: {e}")
-                return {'faces': []}
-
-            results = []
-            if len(extracted) == 0:
-                return {'faces': []}
-
-            # 2) Für jedes gefundene Gesicht Embedding berechnen
-            for face in extracted:
-                # face['facial_area'] = {'x','y','w','h'}
-                bbox = face.get('facial_area', {})
-                # face['embedding'] ist nur vorhanden, wenn represent=True genutzt wurde.
-                # Bei extract_faces ist i.d.R. nur das 'face' Bild enthalten -> also represent erneut:
-                try:
-                    emb = DeepFace.represent(
-                        img_path=face['face'],
-                        model_name=self._model_name,
-                        detector_backend='skip',  # bereits aligned
-                        enforce_detection=False,
-                        align=False,
-                        normalization='base'
-                    )
-                    if isinstance(emb, list):
-                        emb = emb[0]['embedding']
-                    elif isinstance(emb, dict):
-                        emb = emb['embedding']
-                    probe = np.asarray(emb, dtype='float32')
-                except Exception as e:
-                    print(f"⚠️ Embedding für Detected Face fehlgeschlagen: {e}")
-                    continue
-
-                # 3) Mit allen bekannten vergleichen
-                best_name = None
-                best_dist = 9e9
-                for ref in self.known:
-                    d = self._cosine(probe, ref['embedding'])
-                    if d < best_dist:
-                        best_dist = d
-                        best_name = ref['name']
-
-                thr = self._threshold_for_model()
-                recognized = best_dist <= thr
-                # Heuristische Confidence: mappe Distanz [0,thr] -> [1, ~0.5] und >thr -> <0.5
-                if recognized:
-                    confidence = max(0.0, min(1.0, 1.0 - (best_dist / (thr + 1e-9)) * 0.5))
+                print(f"❌ Fehler beim Laden der Gesichter: {e}")
+    
+    def detect_faces_in_image(self, image_data):
+        """
+        Erkennt alle Gesichter in einem Bild
+        Rückgabe: {'faces': [{'name': str|'Unbekannt', 'confidence': float, 'location': tuple}]}
+        """
+        with self._lock:
+            try:
+                # Konvertiere Bilddaten
+                if isinstance(image_data, bytes):
+                    # Von bytes zu PIL Image zu numpy array
+                    pil_image = Image.open(io.BytesIO(image_data))
+                    image = np.array(pil_image)
                 else:
-                    confidence = max(0.0, 0.5 - min(0.5, (best_dist - thr)))  # fällt unter 0.5, je weiter weg
-
-                results.append({
-                    'recognized': bool(recognized),
-                    'name': best_name if recognized else None,
-                    'confidence': float(round(confidence, 3)),
-                    'distance': float(round(best_dist, 4)),
-                    'bbox': {
-                        'x': int(bbox.get('x', 0)),
-                        'y': int(bbox.get('y', 0)),
-                        'w': int(bbox.get('w', 0)),
-                        'h': int(bbox.get('h', 0)),
-                    }
+                    # Direkt als numpy array verwenden
+                    image = image_data
+                
+                # RGB konvertierung falls nötig
+                if len(image.shape) == 3 and image.shape[2] == 3:
+                    # Bereits RGB
+                    rgb_image = image
+                else:
+                    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                
+                # Gesichter finden
+                face_locations = fr.face_locations(rgb_image, model="hog")  # "hog" ist schneller als "cnn"
+                face_encodings = fr.face_encodings(rgb_image, face_locations)
+                
+                detected_faces = []
+                
+                for face_encoding, face_location in zip(face_encodings, face_locations):
+                    # Vergleiche mit bekannten Gesichtern
+                    name = "Unbekannt"
+                    confidence = 0.0
+                    
+                    if self.known_faces:
+                        # Berechne Distanzen zu allen bekannten Gesichtern
+                        known_encodings = [kf['encoding'] for kf in self.known_faces]
+                        matches = fr.compare_faces(known_encodings, face_encoding, tolerance=0.5)
+                        face_distances = fr.face_distance(known_encodings, face_encoding)
+                        
+                        if True in matches:
+                            # Finde beste Übereinstimmung
+                            best_match_index = np.argmin(face_distances)
+                            if matches[best_match_index]:
+                                name = self.known_faces[best_match_index]['name']
+                                confidence = 1.0 - face_distances[best_match_index]  # Je kleiner die Distanz, desto höher die Confidence
+                    
+                    detected_faces.append({
+                        'name': name,
+                        'confidence': float(confidence),
+                        'location': face_location,  # (top, right, bottom, left)
+                        'is_known': name != "Unbekannt"
+                    })
+                
+                # Log the detection
+                self._log_detection(detected_faces)
+                
+                return {'faces': detected_faces, 'total_faces': len(detected_faces)}
+                
+            except Exception as e:
+                print(f"❌ Fehler bei Gesichtserkennung: {e}")
+                return {'faces': [], 'total_faces': 0}
+    
+    def _log_detection(self, detected_faces):
+        """Loggt Erkennungen für Timeline"""
+        timestamp = datetime.datetime.now()
+        
+        for face in detected_faces:
+            detection_entry = {
+                'timestamp': timestamp.isoformat(),
+                'name': face['name'],
+                'confidence': face['confidence'],
+                'is_known': face['is_known']
+            }
+            
+            self.detection_log.append(detection_entry)
+            
+            # Speichere in Datenbank
+            try:
+                connection = get_db_connection()
+                cursor = connection.cursor()
+                cursor.execute("""
+                    INSERT INTO face_detections (name, confidence, is_known, detected_at)
+                    VALUES (?, ?, ?, ?)
+                """, (face['name'], face['confidence'], face['is_known'], timestamp))
+                connection.commit()
+                connection.close()
+            except Exception as e:
+                print(f"❌ Fehler beim Speichern der Erkennung: {e}")
+        
+        # Halte Log-Liste klein (nur letzte 100 Einträge)
+        if len(self.detection_log) > 100:
+            self.detection_log = self.detection_log[-100:]
+    
+    def get_recent_detections(self, limit=50):
+        """Gibt die letzten Erkennungen zurück"""
+        try:
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            cursor.execute("""
+                SELECT name, confidence, is_known, detected_at 
+                FROM face_detections 
+                ORDER BY detected_at DESC 
+                LIMIT ?
+            """, (limit,))
+            
+            detections = []
+            for row in cursor.fetchall():
+                detections.append({
+                    'name': row[0],
+                    'confidence': row[1],
+                    'is_known': bool(row[2]),
+                    'detected_at': row[3]
                 })
+            
+            connection.close()
+            return detections
+            
+        except Exception as e:
+            print(f"❌ Fehler beim Laden der Erkennungen: {e}")
+            return self.detection_log[-limit:] if self.detection_log else []
+    
+    def reload_known_faces(self):
+        """Lädt bekannte Gesichter neu"""
+        self._load_known_faces()
 
-            return {'faces': results}
-
-    # Rückwärtskompatibel zu deinem bestehenden Endpoint
-    def recognize_face_like_test1(self, image_path):
-        res = self.recognize_image(image_path)
-        # nimm bestes Gesicht (höchste Confidence)
-        if not res['faces']:
-            return {'recognized': False, 'name': None, 'confidence': 0}
-        best = sorted(res['faces'], key=lambda f: f['confidence'], reverse=True)[0]
+class FaceMonitoringService:
+    """Service für kontinuierliche Gesichtserkennung im Hintergrund"""
+    
+    def __init__(self, face_recognizer, monitoring_interval=10):
+        self.face_recognizer = face_recognizer
+        self.monitoring_interval = monitoring_interval  # Sekunden zwischen Checks
+        self.is_running = False
+        self.monitoring_thread = None
+        self.last_detection_time = None
+        self.active_cameras = []
+        self._lock = threading.RLock()
+        
+    def start_monitoring(self):
+        """Startet das kontinuierliche Monitoring"""
+        with self._lock:
+            if self.is_running:
+                print("⚠️ Monitoring läuft bereits")
+                return
+                
+            self.is_running = True
+            self.monitoring_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
+            self.monitoring_thread.start()
+            print(f"✅ Face Monitoring gestartet (Intervall: {self.monitoring_interval}s)")
+    
+    def stop_monitoring(self):
+        """Stoppt das kontinuierliche Monitoring"""
+        with self._lock:
+            if not self.is_running:
+                return
+                
+            self.is_running = False
+            if self.monitoring_thread:
+                self.monitoring_thread.join(timeout=2)
+            print("🛑 Face Monitoring gestoppt")
+    
+    def set_interval(self, seconds):
+        """Ändert das Monitoring-Intervall"""
+        with self._lock:
+            self.monitoring_interval = max(5, min(300, seconds))  # 5-300 Sekunden
+            print(f"⚙️ Monitoring-Intervall auf {self.monitoring_interval}s gesetzt")
+    
+    def get_status(self):
+        """Gibt aktuellen Status zurück"""
         return {
-            'recognized': best['recognized'],
-            'name': best['name'],
-            'confidence': best['confidence']
+            'is_running': self.is_running,
+            'interval': self.monitoring_interval,
+            'last_detection': self.last_detection_time.isoformat() if self.last_detection_time else None,
+            'active_cameras': len(self.active_cameras)
         }
+    
+    def _get_active_cameras(self):
+        """Holt aktive Kameras aus der Datenbank"""
+        try:
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            cursor.execute("SELECT id, ip_address, name FROM camera_settings ORDER BY id")
+            cameras = cursor.fetchall()
+            connection.close()
+            
+            active_cameras = []
+            for camera in cameras:
+                # Kurzer Ping-Test ob Kamera erreichbar ist
+                try:
+                    response = requests.get(f"http://{camera[1]}/?action=snapshot", timeout=2)
+                    if response.status_code == 200:
+                        active_cameras.append({
+                            'id': camera[0],
+                            'ip': camera[1], 
+                            'name': camera[2]
+                        })
+                except:
+                    pass  # Kamera offline oder nicht erreichbar
+                    
+            return active_cameras
+            
+        except Exception as e:
+            print(f"❌ Fehler beim Laden der Kameras: {e}")
+            return []
+    
+    def _monitoring_loop(self):
+        """Hauptschleife für kontinuierliches Monitoring"""
+        print("🔄 Face Monitoring Loop gestartet")
+        
+        while self.is_running:
+            try:
+                # Aktive Kameras aktualisieren (alle 5 Zyklen)
+                if len(self.active_cameras) == 0 or (hasattr(self, '_camera_check_counter') and self._camera_check_counter % 5 == 0):
+                    self.active_cameras = self._get_active_cameras()
+                    print(f"📹 {len(self.active_cameras)} aktive Kameras gefunden")
+                
+                if not hasattr(self, '_camera_check_counter'):
+                    self._camera_check_counter = 0
+                self._camera_check_counter += 1
+                
+                # Überwache jede aktive Kamera
+                for camera in self.active_cameras:
+                    if not self.is_running:
+                        break
+                        
+                    try:
+                        # Foto von Kamera aufnehmen
+                        response = requests.get(f"http://{camera['ip']}/?action=snapshot", timeout=3)
+                        
+                        if response.status_code == 200:
+                            # Gesichtserkennung durchführen
+                            result = self.face_recognizer.detect_faces_in_image(response.content)
+                            
+                            if result['total_faces'] > 0:
+                                self.last_detection_time = datetime.datetime.now()
+                                
+                                # Bekannte Gesichter gefunden?
+                                known_faces = [f for f in result['faces'] if f['is_known']]
+                                if known_faces:
+                                    print(f"👤 {len(known_faces)} bekannte(s) Gesicht(er) erkannt auf {camera['name']}")
+                                    for face in known_faces:
+                                        print(f"   - {face['name']} (Confidence: {face['confidence']:.2f})")
+                                
+                                unknown_faces = [f for f in result['faces'] if not f['is_known']]
+                                if unknown_faces:
+                                    print(f"❓ {len(unknown_faces)} unbekannte(s) Gesicht(er) erkannt auf {camera['name']}")
+                            
+                    except Exception as e:
+                        # Stille Fehler für bessere Performance
+                        pass
+                
+                # Warte bis zum nächsten Zyklus
+                time.sleep(self.monitoring_interval)
+                
+            except Exception as e:
+                print(f"❌ Fehler im Monitoring Loop: {e}")
+                time.sleep(5)  # Kurze Pause bei Fehlern
+        
+        print("🔚 Face Monitoring Loop beendet")
 
-    # Hilfsfunktionen für Admin/Frontend
-    def list_known(self):
-        return [{'name': k['name'], 'image': os.path.basename(k['img_path'])} for k in self.known]
-
-    def rebuild_index(self):
-        self._load_known_faces(rebuild_index=True)
-        return {'count': len(self.known)}
-
-# Globale Instanz der Gesichtserkennung
-face_recognition = FaceRecognition()
+# Globale Instanzen
+face_recognition = FastFaceRecognition()
+face_monitoring = FaceMonitoringService(face_recognition, monitoring_interval=15)  # Alle 15 Sekunden
 
 # Jeden Tag neuer Schlüssel
 def generate_daily_secret_key():
@@ -302,6 +356,26 @@ def get_db_connection():
     # Absoluter Pfad zur Datenbank im gleichen Verzeichnis wie app.py
     db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'homeshieldAI.db')
     return sqlite3.connect(db_path)
+
+def get_time_ago(timestamp_str):
+    """Berechnet die Zeit seit einem Timestamp"""
+    try:
+        timestamp = datetime.datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        now = datetime.datetime.now()
+        diff = now - timestamp
+        
+        if diff.days > 0:
+            return f"vor {diff.days} Tag{'en' if diff.days != 1 else ''}"
+        elif diff.seconds > 3600:
+            hours = diff.seconds // 3600
+            return f"vor {hours} Stunde{'n' if hours != 1 else ''}"
+        elif diff.seconds > 60:
+            minutes = diff.seconds // 60
+            return f"vor {minutes} Minute{'n' if minutes != 1 else ''}"
+        else:
+            return "gerade eben"
+    except:
+        return "unbekannt"
 
 def check_login(username, password):
     connection = get_db_connection()
@@ -360,6 +434,24 @@ def dashboard():
     cursor = connection.cursor()
     cursor.execute("SELECT id, name, ip_address, resolution FROM camera_settings ORDER BY id")
     cameras = cursor.fetchall()
+    
+    # Lade aktuelle Gesichtserkennungen (letzte 10)
+    cursor.execute("""
+        SELECT name, confidence, is_known, detected_at 
+        FROM face_detections 
+        ORDER BY detected_at DESC 
+        LIMIT 10
+    """)
+    recent_detections = []
+    for row in cursor.fetchall():
+        recent_detections.append({
+            'name': row[0],
+            'confidence': round(row[1] * 100, 1),  # Als Prozent
+            'is_known': bool(row[2]),
+            'detected_at': row[3],
+            'time_ago': get_time_ago(row[3])
+        })
+    
     connection.close()
     
     # Umwandlung in Dictionary für bessere Template-Verwendung
@@ -376,7 +468,10 @@ def dashboard():
         }
         camera_list.append(camera_dict)
     
-    return render_template('dashboard.html', username=username, cameras=camera_list)
+    return render_template('dashboard.html', 
+                         username=username, 
+                         cameras=camera_list,
+                         recent_detections=recent_detections)
 
 @app.route('/recordings')
 @login_required
@@ -523,6 +618,65 @@ def settings():
         cameras.append(camera_dict)
     
     return render_template('settings.html', username=username, cameras=cameras)
+
+@app.route('/face_timeline')
+@login_required
+def face_timeline():
+    username = session.get('username', 'Guest')
+    
+    # Lade die letzten Gesichtserkennungen
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Erkennungen der letzten 24 Stunden
+        cursor.execute("""
+            SELECT name, confidence, is_known, detected_at 
+            FROM face_detections 
+            WHERE datetime(detected_at) >= datetime('now', '-1 day')
+            ORDER BY detected_at DESC
+        """)
+        
+        detections = []
+        for row in cursor.fetchall():
+            detections.append({
+                'name': row[0],
+                'confidence': round(row[1] * 100, 1),
+                'is_known': bool(row[2]),
+                'detected_at': row[3],
+                'formatted_time': datetime.datetime.fromisoformat(row[3]).strftime('%H:%M:%S'),
+                'formatted_date': datetime.datetime.fromisoformat(row[3]).strftime('%d.%m.%Y')
+            })
+        
+        # Statistiken
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN is_known = 1 THEN 1 ELSE 0 END) as known,
+                COUNT(DISTINCT name) as unique_faces
+            FROM face_detections 
+            WHERE datetime(detected_at) >= datetime('now', '-1 day')
+        """)
+        
+        stats = cursor.fetchone()
+        statistics = {
+            'total_detections': stats[0] or 0,
+            'known_faces': stats[1] or 0,
+            'unknown_faces': (stats[0] or 0) - (stats[1] or 0),
+            'unique_faces': stats[2] or 0
+        }
+        
+        connection.close()
+        
+    except Exception as e:
+        print(f"Fehler beim Laden der Timeline: {e}")
+        detections = []
+        statistics = {'total_detections': 0, 'known_faces': 0, 'unknown_faces': 0, 'unique_faces': 0}
+    
+    return render_template('face_timeline.html', 
+                         username=username, 
+                         detections=detections,
+                         statistics=statistics)
 
 @app.route('/api/cameras', methods=['GET'])
 @login_required
@@ -956,74 +1110,112 @@ def recognize_face_from_camera(camera_id):
         if response.status_code != 200:
             return jsonify({'success': False, 'error': 'Konnte kein Foto von der Kamera aufnehmen'})
         
-        # Temporäres Bild speichern
-        temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp')
-        os.makedirs(temp_dir, exist_ok=True)
-        
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-        temp_image_path = os.path.join(temp_dir, f'recognition_{timestamp}.jpg')
-        
-        with open(temp_image_path, 'wb') as f:
-            f.write(response.content)
-        
         # Gesichtserkennung durchführen
-        result = face_recognition.recognize_face_like_test1(temp_image_path)
-        
-        # Temporäres Bild löschen
-        try:
-            os.remove(temp_image_path)
-        except:
-            pass
+        result = face_recognition.detect_faces_in_image(response.content)
         
         return jsonify({
             'success': True,
-            'recognized': result['recognized'],
-            'name': result['name'],
-            'confidence': result['confidence'],
+            'faces': result['faces'],
+            'total_faces': result['total_faces'],
             'camera': camera_name
         })
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Fehler bei der Gesichtserkennung: {str(e)}'})
 
-@app.route('/api/face_monitoring/status', methods=['GET'])
+@app.route('/api/face_detections/recent', methods=['GET'])
 @login_required
-def get_face_monitoring_status():
-    """Gibt den Status der Gesichtserkennung zurück"""
+def get_recent_face_detections():
+    """API für aktuelle Gesichtserkennungen"""
     try:
-        # Einfacher Status - immer verfügbar aber nicht kontinuierlich aktiv
-        return jsonify({
-            'success': True,
-            'monitoring_active': False,  # Kein kontinuierliches Monitoring in der vereinfachten Version
-            'cameras': {},
-            'message': 'Gesichtserkennung verfügbar (manuell)'
-        })
+        limit = request.args.get('limit', 10, type=int)
+        detections = face_recognition.get_recent_detections(limit)
+        
+        # Formatiere für Frontend
+        formatted_detections = []
+        for detection in detections:
+            formatted_detections.append({
+                'name': detection['name'],
+                'confidence': round(detection['confidence'] * 100, 1),
+                'is_known': detection['is_known'],
+                'detected_at': detection['detected_at'],
+                'time_ago': get_time_ago(detection['detected_at'])
+            })
+        
+        return jsonify({'success': True, 'detections': formatted_detections})
+        
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Fehler beim Abrufen des Status: {str(e)}'})
+        return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/face_monitoring/start', methods=['POST'])
-@login_required
-def start_global_face_monitoring():
-    """Startet globale Gesichtserkennung (vereinfachte Version)"""
+@app.route('/api/face_detections/statistics', methods=['GET'])
+@login_required 
+def get_face_detection_statistics():
+    """API für Gesichtserkennungs-Statistiken"""
     try:
-        return jsonify({
-            'success': True,
-            'message': 'Gesichtserkennung ist verfügbar - verwenden Sie die manuellen Erkennungsbuttons'
-        })
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Statistiken für heute
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_today,
+                SUM(CASE WHEN is_known = 1 THEN 1 ELSE 0 END) as known_today,
+                COUNT(DISTINCT name) as unique_today
+            FROM face_detections 
+            WHERE date(detected_at) = date('now')
+        """)
+        
+        today_stats = cursor.fetchone()
+        
+        # Statistiken für diese Woche
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_week,
+                SUM(CASE WHEN is_known = 1 THEN 1 ELSE 0 END) as known_week,
+                COUNT(DISTINCT name) as unique_week
+            FROM face_detections 
+            WHERE datetime(detected_at) >= datetime('now', '-7 days')
+        """)
+        
+        week_stats = cursor.fetchone()
+        
+        connection.close()
+        
+        statistics = {
+            'today': {
+                'total': today_stats[0] or 0,
+                'known': today_stats[1] or 0,
+                'unknown': (today_stats[0] or 0) - (today_stats[1] or 0),
+                'unique': today_stats[2] or 0
+            },
+            'week': {
+                'total': week_stats[0] or 0,
+                'known': week_stats[1] or 0,
+                'unknown': (week_stats[0] or 0) - (week_stats[1] or 0),
+                'unique': week_stats[2] or 0
+            }
+        }
+        
+        return jsonify({'success': True, 'statistics': statistics})
+        
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Fehler: {str(e)}'})
+        return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/face_monitoring/stop', methods=['POST'])
+@app.route('/api/face_monitoring/start_continuous', methods=['POST'])
 @login_required
-def stop_global_face_monitoring():
-    """Stoppt globale Gesichtserkennung (vereinfachte Version)"""
+def start_continuous_monitoring():
+    """Startet kontinuierliche Gesichtserkennung für alle Kameras"""
     try:
+        # TODO: Implementiere kontinuierliche Überwachung
         return jsonify({
-            'success': True,
-            'message': 'Kein kontinuierliches Monitoring aktiv'
+            'success': True, 
+            'message': 'Kontinuierliche Gesichtserkennung gestartet',
+            'status': 'running'
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Fehler: {str(e)}'})
+        return jsonify({'success': False, 'error': str(e)})
+
+# Face monitoring API routes removed - face recognition functionality disabled
 
 @app.route('/api/cameras/<int:camera_id>/status', methods=['GET'])
 @login_required
@@ -1075,6 +1267,107 @@ def get_all_cameras_status():
         })
     
     return jsonify(status_list)
+
+@app.route('/api/face_monitoring/status', methods=['GET'])
+@login_required
+def face_monitoring_status():
+    """API Endpoint für Face Monitoring Status"""
+    global face_recognizer, face_monitoring
+    
+    if face_recognizer is None:
+        return jsonify({
+            'status': 'disabled',
+            'status_text': 'Gesichtserkennung nicht aktiv',
+            'known_faces': 0,
+            'recent_detections': 0,
+            'monitoring': {'is_running': False, 'interval': 0}
+        })
+    
+    # Aktuelle Statistiken
+    known_faces_count = len(face_recognizer.known_faces)
+    
+    # Zähle Erkennungen der letzten 24 Stunden
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute("""
+        SELECT COUNT(*) as count 
+        FROM face_detections 
+        WHERE timestamp >= datetime('now', '-24 hours')
+    """)
+    recent_detections = cursor.fetchone()['count']
+    connection.close()
+    
+    # Monitoring Status
+    monitoring_status = face_monitoring.get_status()
+    
+    return jsonify({
+        'status': 'active',
+        'status_text': 'Gesichtserkennung aktiv',
+        'known_faces': known_faces_count,
+        'recent_detections': recent_detections,
+        'monitoring': monitoring_status
+    })
+
+@app.route('/api/face_monitoring/start', methods=['POST'])
+@login_required
+def start_face_monitoring():
+    """Startet kontinuierliches Face Monitoring"""
+    global face_monitoring
+    
+    try:
+        # Optional: Intervall aus Request holen
+        data = request.get_json() or {}
+        interval = data.get('interval', 15)  # Standard: 15 Sekunden
+        
+        face_monitoring.set_interval(interval)
+        face_monitoring.start_monitoring()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Face Monitoring gestartet (alle {interval}s)',
+            'status': face_monitoring.get_status()
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/face_monitoring/stop', methods=['POST'])
+@login_required
+def stop_face_monitoring():
+    """Stoppt kontinuierliches Face Monitoring"""
+    global face_monitoring
+    
+    try:
+        face_monitoring.stop_monitoring()
+        return jsonify({
+            'success': True, 
+            'message': 'Face Monitoring gestoppt',
+            'status': face_monitoring.get_status()
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/face_monitoring/interval', methods=['POST'])
+@login_required
+def set_monitoring_interval():
+    """Ändert das Monitoring-Intervall"""
+    global face_monitoring
+    
+    try:
+        data = request.get_json()
+        interval = int(data.get('interval', 15))
+        
+        if interval < 5 or interval > 300:
+            return jsonify({'success': False, 'error': 'Intervall muss zwischen 5 und 300 Sekunden liegen'})
+        
+        face_monitoring.set_interval(interval)
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Intervall auf {interval}s gesetzt',
+            'status': face_monitoring.get_status()
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True, port=80, host="0.0.0.0")

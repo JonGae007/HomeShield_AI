@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Erkennungs-Logs - HomeShield AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='logs.css') }}">
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo">
+            <img src="/static/icons/logo.png" alt="HomeShieldAI">
+            <h2>HomeShieldAI</h2>
+        </div>
+        <ul class="menu">
+            <li><a href="/dashboard"><img src="/static/icons/dashboard.png" alt="Dashboard Icon"> Dashboard</a></li>
+            <li><a href="/recordings"><img src="/static/icons/play.png" alt="Recordings Icon"> Aufzeichnungen</a></li>
+            <li><a href="/faces"><img src="/static/icons/face.png" alt="Face Icon"> Gesichter</a></li>
+            <li><a href="/logs" class="active"><img src="/static/icons/logs.png" alt="Logs Icon"> Logs</a></li>
+            <li><a href="/settings"><img src="/static/icons/settings.png" alt="Settings Icon"> Einstellungen</a></li>
+        </ul>
+        <footer>
+            <p>Created by Raik and Jonas</p>
+        </footer>
+    </div>
+    <a href="/account" class="topbar">
+        <img src="/static/icons/user.png" alt="User Icon">
+        {{ session.get('username', 'Guest') }}
+    </a>
+
+    <div class="content">
+        <header class="main-header">
+            <h1>📋 Erkennungs-Logs</h1>
+            <div class="header-actions">
+                <button id="refreshBtn" class="btn btn-secondary">🔄 Aktualisieren</button>
+                <button id="clearAllBtn" class="btn btn-danger">🗑️ Alle löschen</button>
+            </div>
+        </header>
+
+        {% if error %}
+        <div class="alert alert-error">
+            <strong>Fehler:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Filter-Bereich -->
+        <div class="filters-container">
+            <h3>🔍 Filter</h3>
+            <form method="GET" action="/logs" class="filters-form">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label for="name">Name:</label>
+                        <input type="text" id="name" name="name" value="{{ name_filter }}" placeholder="Name suchen...">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="known">Typ:</label>
+                        <select id="known" name="known">
+                            <option value="">Alle</option>
+                            <option value="known" {% if known_filter == 'known' %}selected{% endif %}>Bekannte</option>
+                            <option value="unknown" {% if known_filter == 'unknown' %}selected{% endif %}>Unbekannte</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="date_from">Von:</label>
+                        <input type="date" id="date_from" name="date_from" value="{{ date_from }}">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="date_to">Bis:</label>
+                        <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
+                    </div>
+                    
+                    <div class="filter-actions">
+                        <button type="submit" class="btn btn-primary">Filtern</button>
+                        <a href="/logs" class="btn btn-secondary">Zurücksetzen</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Statistiken -->
+        <div class="stats-container">
+            <div class="stats-card">
+                <div class="stats-number">{{ total_count }}</div>
+                <div class="stats-label">Gesamt Erkennungen</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-number">{{ detections|selectattr('is_known')|list|length }}</div>
+                <div class="stats-label">Bekannte Personen</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-number">{{ detections|rejectattr('is_known')|list|length }}</div>
+                <div class="stats-label">Unbekannte Personen</div>
+            </div>
+        </div>
+
+        <!-- Bulk-Aktionen -->
+        {% if detections %}
+        <div class="bulk-actions">
+            <div class="bulk-selection">
+                <label>
+                    <input type="checkbox" id="selectAll"> Alle auswählen
+                </label>
+                <span id="selectedCount">0 ausgewählt</span>
+            </div>
+            <div class="bulk-buttons">
+                <button id="bulkDeleteBtn" class="btn btn-danger" disabled>Ausgewählte löschen</button>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Erkennungs-Liste -->
+        <div class="logs-container">
+            {% if detections %}
+            <div class="logs-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAllHeader"></th>
+                            <th>Name</th>
+                            <th>Typ</th>
+                            <th>Vertrauen</th>
+                            <th>Zeitpunkt</th>
+                            <th>Kamera</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for detection in detections %}
+                        <tr data-id="{{ detection.id }}">
+                            <td>
+                                <input type="checkbox" class="detection-checkbox" value="{{ detection.id }}">
+                            </td>
+                            <td>
+                                <div class="name-cell">
+                                    <strong>{{ detection.name }}</strong>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="status-badge {% if detection.is_known %}known{% else %}unknown{% endif %}">
+                                    {% if detection.is_known %}
+                                        ✅ Bekannt
+                                    {% else %}
+                                        ❓ Unbekannt
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="confidence-cell">
+                                    <div class="confidence-bar">
+                                        <div class="confidence-fill" style="width: {{ detection.confidence }}%"></div>
+                                    </div>
+                                    <span class="confidence-text">{{ detection.confidence }}%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="time-cell">
+                                    <div class="time-main">{{ detection.detected_at.split('.')[0] }}</div>
+                                    <div class="time-ago">{{ detection.time_ago }}</div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="camera-badge">
+                                    📷 {% if detection.camera_id %}Kamera {{ detection.camera_id }}{% else %}Unbekannt{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <button class="btn btn-small btn-danger delete-btn" data-id="{{ detection.id }}">
+                                    🗑️ Löschen
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginierung -->
+            {% if total_pages > 1 %}
+            <div class="pagination">
+                <div class="pagination-info">
+                    Seite {{ page }} von {{ total_pages }} ({{ total_count }} Einträge)
+                </div>
+                <div class="pagination-controls">
+                    {% if has_prev %}
+                        <a href="?page=1{% if name_filter %}&name={{ name_filter }}{% endif %}{% if known_filter %}&known={{ known_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn btn-small">« Erste</a>
+                        <a href="?page={{ page - 1 }}{% if name_filter %}&name={{ name_filter }}{% endif %}{% if known_filter %}&known={{ known_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn btn-small">‹ Vorherige</a>
+                    {% endif %}
+                    
+                    {% for p in range(max(1, page - 2), min(total_pages + 1, page + 3)) %}
+                        {% if p == page %}
+                            <span class="btn btn-small btn-primary">{{ p }}</span>
+                        {% else %}
+                            <a href="?page={{ p }}{% if name_filter %}&name={{ name_filter }}{% endif %}{% if known_filter %}&known={{ known_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn btn-small">{{ p }}</a>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if has_next %}
+                        <a href="?page={{ page + 1 }}{% if name_filter %}&name={{ name_filter }}{% endif %}{% if known_filter %}&known={{ known_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn btn-small">Nächste ›</a>
+                        <a href="?page={{ total_pages }}{% if name_filter %}&name={{ name_filter }}{% endif %}{% if known_filter %}&known={{ known_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn btn-small">Letzte »</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% else %}
+            <div class="no-data">
+                <div class="no-data-icon">📊</div>
+                <h3>Keine Erkennungen gefunden</h3>
+                <p>
+                    {% if name_filter or known_filter or date_from or date_to %}
+                        Keine Erkennungen entsprechen den aktuellen Filterkriterien.
+                    {% else %}
+                        Es wurden noch keine Gesichtserkennungen aufgezeichnet.
+                    {% endif %}
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Bestätigungs-Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <h3>Erkennungen löschen</h3>
+            <p id="deleteModalText">Sind Sie sicher, dass Sie diese Erkennung löschen möchten?</p>
+            <div class="modal-actions">
+                <button id="confirmDelete" class="btn btn-danger">Löschen</button>
+                <button id="cancelDelete" class="btn btn-secondary">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='logs.js') }}"></script>
+</body>
+</html>

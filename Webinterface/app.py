@@ -144,7 +144,7 @@ class FastFaceRecognition:
                 return {'faces': [], 'total_faces': 0}
     
     def _log_detection(self, detected_faces):
-        """Loggt Erkennungen für Timeline"""
+        """Loggt Gesichtserkennungen in die Datenbank"""
         timestamp = datetime.datetime.now()
         
         for face in detected_faces:
@@ -694,65 +694,6 @@ def settings():
     
     return render_template('settings.html', username=username, cameras=cameras)
 
-@app.route('/face_timeline')
-@login_required
-def face_timeline():
-    username = session.get('username', 'Guest')
-    
-    # Lade die letzten Gesichtserkennungen
-    try:
-        connection = get_db_connection()
-        cursor = connection.cursor()
-        
-        # Erkennungen der letzten 24 Stunden
-        cursor.execute("""
-            SELECT name, confidence, is_known, detected_at 
-            FROM face_detections 
-            WHERE datetime(detected_at) >= datetime('now', '-1 day')
-            ORDER BY detected_at DESC
-        """)
-        
-        detections = []
-        for row in cursor.fetchall():
-            detections.append({
-                'name': row[0],
-                'confidence': round(row[1] * 100, 1),
-                'is_known': bool(row[2]),
-                'detected_at': row[3],
-                'formatted_time': datetime.datetime.fromisoformat(row[3]).strftime('%H:%M:%S'),
-                'formatted_date': datetime.datetime.fromisoformat(row[3]).strftime('%d.%m.%Y')
-            })
-        
-        # Statistiken
-        cursor.execute("""
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN is_known = 1 THEN 1 ELSE 0 END) as known,
-                COUNT(DISTINCT name) as unique_faces
-            FROM face_detections 
-            WHERE datetime(detected_at) >= datetime('now', '-1 day')
-        """)
-        
-        stats = cursor.fetchone()
-        statistics = {
-            'total_detections': stats[0] or 0,
-            'known_faces': stats[1] or 0,
-            'unknown_faces': (stats[0] or 0) - (stats[1] or 0),
-            'unique_faces': stats[2] or 0
-        }
-        
-        connection.close()
-        
-    except Exception as e:
-        print(f"Fehler beim Laden der Timeline: {e}")
-        detections = []
-        statistics = {'total_detections': 0, 'known_faces': 0, 'unknown_faces': 0, 'unique_faces': 0}
-    
-    return render_template('face_timeline.html', 
-                         username=username, 
-                         detections=detections,
-                         statistics=statistics)
-
 @app.route('/api/cameras', methods=['GET'])
 @login_required
 def get_cameras():
@@ -863,6 +804,190 @@ def check_camera_status(camera_id):
             
     except Exception as e:
         return jsonify({'success': False, 'error': f'Unerwarteter Fehler: {str(e)}'})
+
+@app.route('/logs')
+@login_required
+def logs():
+    """Log-Seite für Gesichtserkennungen"""
+    try:
+        # Hole Parameter für Paginierung
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        
+        # Hole Filter-Parameter
+        name_filter = request.args.get('name', '').strip()
+        known_filter = request.args.get('known', '')
+        date_from = request.args.get('date_from', '')
+        date_to = request.args.get('date_to', '')
+        
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Baue WHERE Klausel basierend auf Filtern
+        where_conditions = []
+        params = []
+        
+        if name_filter:
+            where_conditions.append("name LIKE ?")
+            params.append(f"%{name_filter}%")
+        
+        if known_filter:
+            if known_filter == 'known':
+                where_conditions.append("is_known = 1")
+            elif known_filter == 'unknown':
+                where_conditions.append("is_known = 0")
+        
+        if date_from:
+            where_conditions.append("date(detected_at) >= ?")
+            params.append(date_from)
+            
+        if date_to:
+            where_conditions.append("date(detected_at) <= ?")
+            params.append(date_to)
+        
+        where_clause = " WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        
+        # Gesamtanzahl für Paginierung
+        count_query = f"SELECT COUNT(*) FROM face_detections{where_clause}"
+        cursor.execute(count_query, params)
+        total_count = cursor.fetchone()[0]
+        
+        # Berechne Offset
+        offset = (page - 1) * per_page
+        
+        # Hole Erkennungen mit Paginierung
+        query = f"""
+            SELECT id, name, confidence, is_known, detected_at, camera_id
+            FROM face_detections
+            {where_clause}
+            ORDER BY detected_at DESC
+            LIMIT ? OFFSET ?
+        """
+        cursor.execute(query, params + [per_page, offset])
+        detections = cursor.fetchall()
+        
+        # Formatiere Daten
+        formatted_detections = []
+        for detection in detections:
+            formatted_detections.append({
+                'id': detection[0],
+                'name': detection[1],
+                'confidence': round(detection[2] * 100, 1),
+                'is_known': detection[3],
+                'detected_at': detection[4],
+                'camera_id': detection[5],
+                'time_ago': get_time_ago(detection[4])
+            })
+        
+        connection.close()
+        
+        # Paginierungs-Informationen
+        total_pages = (total_count + per_page - 1) // per_page
+        has_prev = page > 1
+        has_next = page < total_pages
+        
+        return render_template('logs.html', 
+                             detections=formatted_detections,
+                             page=page,
+                             per_page=per_page,
+                             total_count=total_count,
+                             total_pages=total_pages,
+                             has_prev=has_prev,
+                             has_next=has_next,
+                             name_filter=name_filter,
+                             known_filter=known_filter,
+                             date_from=date_from,
+                             date_to=date_to)
+        
+    except Exception as e:
+        print(f"❌ Fehler beim Laden der Logs: {str(e)}")
+        return render_template('logs.html', detections=[], error=str(e))
+
+@app.route('/api/logs/<int:detection_id>', methods=['DELETE'])
+@login_required
+def delete_detection(detection_id):
+    """API zum Löschen einer einzelnen Erkennung"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Prüfe ob Erkennung existiert
+        cursor.execute("SELECT id FROM face_detections WHERE id = ?", (detection_id,))
+        if not cursor.fetchone():
+            connection.close()
+            return jsonify({'success': False, 'error': 'Erkennung nicht gefunden'})
+        
+        # Lösche Erkennung
+        cursor.execute("DELETE FROM face_detections WHERE id = ?", (detection_id,))
+        connection.commit()
+        connection.close()
+        
+        return jsonify({'success': True, 'message': 'Erkennung gelöscht'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/logs/bulk-delete', methods=['POST'])
+@login_required
+def bulk_delete_detections():
+    """API zum Löschen mehrerer Erkennungen"""
+    try:
+        data = request.get_json()
+        detection_ids = data.get('ids', [])
+        
+        if not detection_ids:
+            return jsonify({'success': False, 'error': 'Keine IDs zum Löschen angegeben'})
+        
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Erstelle Platzhalter für IN-Klausel
+        placeholders = ','.join('?' * len(detection_ids))
+        query = f"DELETE FROM face_detections WHERE id IN ({placeholders})"
+        
+        cursor.execute(query, detection_ids)
+        deleted_count = cursor.rowcount
+        connection.commit()
+        connection.close()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'{deleted_count} Erkennungen gelöscht'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/logs/clear-all', methods=['POST'])
+@login_required
+def clear_all_detections():
+    """API zum Löschen aller Erkennungen (mit Bestätigung)"""
+    try:
+        data = request.get_json()
+        confirm = data.get('confirm', False)
+        
+        if not confirm:
+            return jsonify({'success': False, 'error': 'Bestätigung erforderlich'})
+        
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Zähle vorher
+        cursor.execute("SELECT COUNT(*) FROM face_detections")
+        count_before = cursor.fetchone()[0]
+        
+        # Lösche alle
+        cursor.execute("DELETE FROM face_detections")
+        connection.commit()
+        connection.close()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Alle {count_before} Erkennungen gelöscht'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/account')
 @login_required

@@ -16,7 +16,7 @@ html {
 
 /* Alert Styles */
 .alert {
-    padding: 16px 20px;
+    padding: 16px 24px;
     margin: 16px 0;
     border-radius: 8px;
     display: flex;
@@ -27,6 +27,7 @@ html {
     max-width: 1200px;
     margin-left: auto;
     margin-right: auto;
+    border-left: 5px solid;
 }
 
 @keyframes slideInDown {
@@ -42,13 +43,13 @@ html {
 
 .alert-error {
     background-color: rgba(229, 62, 62, 0.1);
-    border: 1px solid #E53E3E;
+    border-color: #E53E3E;
     color: #FEB2B2;
 }
 
 .alert-success {
     background-color: rgba(115, 212, 130, 0.1);
-    border: 1px solid #73D482;
+    border-color: #73D482;
     color: #9AE6B4;
 }
 
@@ -61,14 +62,14 @@ html {
     border-radius: 16px;
     padding: 32px;
     margin: 24px 0;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
     border: 1px solid #3A424E;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: transform 0.3s, box-shadow 0.3s;
 }
 
 .account-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
 }
 
 .section-title {
@@ -185,6 +186,11 @@ html {
     box-sizing: border-box;
 }
 
+.btn-account:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+}
+
 .btn-account img {
     width: 16px;
     height: 16px;
@@ -263,10 +269,10 @@ html {
 }
 
 .modal-content {
-    background-color: #232831;
+    background: linear-gradient(135deg, #232831, #2C353F);
     margin: 10% auto;
     padding: 0;
-    border: 1px solid #3A424E;
+    border: 1px solid #4A5568;
     border-radius: 16px;
     width: 90%;
     max-width: 500px;
@@ -287,7 +293,8 @@ html {
 
 .modal-header {
     padding: 24px 32px 16px;
-    border-bottom: 1px solid #3A424E;
+    border-bottom: 1px solid #4A5568;
+    background: #2C353F;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -295,7 +302,7 @@ html {
 
 .modal-header h3 {
     margin: 0;
-    color: #fff;
+    color: #9AE6B4;
     font-size: 20px;
     font-weight: 600;
 }
@@ -310,7 +317,7 @@ html {
 }
 
 .close:hover {
-    color: #E53E3E;
+    color: #FEB2B2;
 }
 
 .modal-body {
@@ -412,7 +419,7 @@ html {
     }
     
     .account-card {
-        padding: 20px;
+        padding: 16px;
         margin: 12px 0;
     }
     
@@ -421,7 +428,7 @@ html {
     }
     
     .btn-account {
-        padding: 14px 24px;
+        padding: 12px 20px;
         font-size: 14px;
         min-width: 150px;
     }
@@ -435,5 +442,9 @@ html {
         width: 100%;
         max-width: none;
         flex: none;
+    }
+    
+    .modal-content {
+        padding: 16px;
     }
 }

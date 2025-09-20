@@ -265,12 +265,12 @@ input[type="text"], input[type="password"] {
 }
 
 .btn.btn-secondary {
-    background: #6c757d;
+    background: #af1b1b;
     color: white;
 }
 
 .btn.btn-secondary:hover {
-    background: #5a6268;
+    background: #711010;
 }
 
 .btn.btn-small {
@@ -1119,4 +1119,9 @@ footer {
     .face-status-indicator {
         margin-left: 0;
     }
+}
+/* Adjust the image size within the button */
+.btn img {
+    width: 16px; /* Set a smaller width for the image */
+    height: 16px; /* Set a smaller height for the image */
 }

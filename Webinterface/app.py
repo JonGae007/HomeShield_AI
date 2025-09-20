@@ -217,6 +217,70 @@ class FaceMonitoringService:
         self.last_detection_time = None
         self.active_cameras = []
         self._lock = threading.RLock()
+        self.auto_start_enabled = False  # Flag ob automatisch starten
+        
+    def load_settings_from_db(self, user_id):
+        """Lädt Monitoring-Einstellungen aus der Datenbank für einen Benutzer"""
+        try:
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            
+            cursor.execute('''
+                SELECT setting_key, setting_value 
+                FROM dashboard_settings 
+                WHERE user_id = ? AND setting_key IN ('monitoring_interval', 'monitoring_enabled')
+            ''', (user_id,))
+            
+            settings = cursor.fetchall()
+            connection.close()
+            
+            for key, value in settings:
+                if key == 'monitoring_interval':
+                    try:
+                        import json
+                        interval = json.loads(value) if value.isdigit() == False else int(value)
+                        self.set_interval(interval)
+                    except:
+                        pass
+                elif key == 'monitoring_enabled':
+                    try:
+                        import json
+                        enabled = json.loads(value) if isinstance(value, str) and value.lower() in ['true', 'false'] else bool(value)
+                        self.auto_start_enabled = enabled
+                        if enabled and not self.is_running:
+                            print("🔄 Auto-Start: Starte Monitoring basierend auf gespeicherten Einstellungen")
+                            self.start_monitoring()
+                    except:
+                        pass
+                        
+        except Exception as e:
+            print(f"❌ Fehler beim Laden der Monitoring-Einstellungen: {e}")
+    
+    def save_settings_to_db(self, user_id):
+        """Speichert aktuelle Monitoring-Einstellungen in die Datenbank"""
+        try:
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            
+            # Speichere Intervall
+            cursor.execute('''
+                INSERT OR REPLACE INTO dashboard_settings 
+                (user_id, setting_key, setting_value, updated_at)
+                VALUES (?, 'monitoring_interval', ?, CURRENT_TIMESTAMP)
+            ''', (user_id, str(self.monitoring_interval)))
+            
+            # Speichere Status
+            cursor.execute('''
+                INSERT OR REPLACE INTO dashboard_settings 
+                (user_id, setting_key, setting_value, updated_at)
+                VALUES (?, 'monitoring_enabled', ?, CURRENT_TIMESTAMP)
+            ''', (user_id, str(self.is_running)))
+            
+            connection.commit()
+            connection.close()
+            
+        except Exception as e:
+            print(f"❌ Fehler beim Speichern der Monitoring-Einstellungen: {e}")
         
     def start_monitoring(self):
         """Startet das kontinuierliche Monitoring"""
@@ -381,10 +445,10 @@ def check_login(username, password):
     connection = get_db_connection()
     cursor = connection.cursor()
     hashed_password = hashlib.sha256(password.encode()).hexdigest()
-    cursor.execute("SELECT * FROM users WHERE username=? AND password=?", (username, hashed_password))
+    cursor.execute("SELECT id, username, password FROM users WHERE username=? AND password=?", (username, hashed_password))
     user = cursor.fetchone()
     connection.close()
-    return user is not None
+    return user  # Gibt den ganzen User-Record zurück oder None
 
 def login_required(f):
     @wraps(f)
@@ -410,9 +474,12 @@ def login():
         if not username or not password:
             error = "Fehlende Eingaben."
         else:
-            if check_login(username, password):
+            user = check_login(username, password)
+            if user:
                 session["logged_in"] = True
                 session["username"] = username
+                session["user_id"] = user[0]  # user[0] ist die ID
+                print(f"🔐 Benutzer {username} angemeldet (ID: {user[0]})")
                 return redirect("/dashboard")
             else:
                 error = "Ungültige Anmeldedaten."
@@ -428,6 +495,12 @@ def logout():
 @login_required
 def dashboard():
     username = session.get('username', 'Guest')
+    user_id = session.get('user_id')
+    
+    # Lade Dashboard-Einstellungen für den Benutzer
+    global face_monitoring
+    if user_id:
+        face_monitoring.load_settings_from_db(user_id)
     
     # Kameras aus der Datenbank laden
     connection = get_db_connection()
@@ -1272,9 +1345,9 @@ def get_all_cameras_status():
 @login_required
 def face_monitoring_status():
     """API Endpoint für Face Monitoring Status"""
-    global face_recognizer, face_monitoring
+    global face_recognition, face_monitoring
     
-    if face_recognizer is None:
+    if face_recognition is None:
         return jsonify({
             'status': 'disabled',
             'status_text': 'Gesichtserkennung nicht aktiv',
@@ -1284,7 +1357,7 @@ def face_monitoring_status():
         })
     
     # Aktuelle Statistiken
-    known_faces_count = len(face_recognizer.known_faces)
+    known_faces_count = len(face_recognition.known_faces)
     
     # Zähle Erkennungen der letzten 24 Stunden
     connection = get_db_connection()
@@ -1315,12 +1388,17 @@ def start_face_monitoring():
     global face_monitoring
     
     try:
+        user_id = session.get('user_id')
+        
         # Optional: Intervall aus Request holen
         data = request.get_json() or {}
         interval = data.get('interval', 15)  # Standard: 15 Sekunden
         
         face_monitoring.set_interval(interval)
         face_monitoring.start_monitoring()
+        
+        # Einstellungen in Datenbank speichern
+        face_monitoring.save_settings_to_db(user_id)
         
         return jsonify({
             'success': True, 
@@ -1337,7 +1415,13 @@ def stop_face_monitoring():
     global face_monitoring
     
     try:
+        user_id = session.get('user_id')
+        
         face_monitoring.stop_monitoring()
+        
+        # Einstellungen in Datenbank speichern
+        face_monitoring.save_settings_to_db(user_id)
+        
         return jsonify({
             'success': True, 
             'message': 'Face Monitoring gestoppt',
@@ -1353,6 +1437,7 @@ def set_monitoring_interval():
     global face_monitoring
     
     try:
+        user_id = session.get('user_id')
         data = request.get_json()
         interval = int(data.get('interval', 15))
         
@@ -1361,11 +1446,165 @@ def set_monitoring_interval():
         
         face_monitoring.set_interval(interval)
         
+        # Einstellungen in Datenbank speichern
+        face_monitoring.save_settings_to_db(user_id)
+        
         return jsonify({
             'success': True, 
             'message': f'Intervall auf {interval}s gesetzt',
             'status': face_monitoring.get_status()
         })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+# Dashboard Settings API
+@app.route('/api/dashboard/settings', methods=['GET'])
+@login_required
+def get_dashboard_settings():
+    """Lädt Dashboard-Einstellungen für den aktuellen Benutzer"""
+    try:
+        user_id = session.get('user_id')
+        print(f"📋 Loading dashboard settings for user_id: {user_id}")
+        
+        if user_id is None:
+            return jsonify({'success': False, 'error': 'Keine Benutzer-ID in Session gefunden'})
+        
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Lade alle Einstellungen für den Benutzer
+        cursor.execute('''
+            SELECT setting_key, setting_value 
+            FROM dashboard_settings 
+            WHERE user_id = ?
+        ''', (user_id,))
+        
+        settings_rows = cursor.fetchall()
+        connection.close()
+        
+        print(f"📊 Found {len(settings_rows)} settings in database for user {user_id}")
+        
+        # Konvertiere zu Dictionary
+        settings = {}
+        for key, value in settings_rows:
+            # Versuche JSON zu parsen, falls nicht möglich als String
+            try:
+                import json
+                settings[key] = json.loads(value)
+            except:
+                settings[key] = value
+            print(f"  - {key}: {settings[key]}")
+        
+        # Standard-Einstellungen falls keine vorhanden
+        default_settings = {
+            'monitoring_interval': 15,
+            'monitoring_enabled': False,
+            'auto_refresh': True,
+            'refresh_interval': 30
+        }
+        
+        # Merge mit Defaults
+        for key, default_value in default_settings.items():
+            if key not in settings:
+                settings[key] = default_value
+        
+        return jsonify({
+            'success': True,
+            'settings': settings
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/dashboard/settings', methods=['POST'])
+@login_required
+def save_dashboard_settings():
+    """Speichert Dashboard-Einstellungen für den aktuellen Benutzer"""
+    try:
+        user_id = session.get('user_id')
+        data = request.get_json()
+        
+        if not data or 'settings' not in data:
+            return jsonify({'success': False, 'error': 'Keine Einstellungen übermittelt'})
+        
+        settings = data['settings']
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Speichere jede Einstellung
+        for key, value in settings.items():
+            # Konvertiere zu JSON String
+            import json
+            value_str = json.dumps(value) if not isinstance(value, str) else str(value)
+            
+            # INSERT OR REPLACE für jede Einstellung
+            cursor.execute('''
+                INSERT OR REPLACE INTO dashboard_settings 
+                (user_id, setting_key, setting_value, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (user_id, key, value_str))
+        
+        connection.commit()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{len(settings)} Einstellungen gespeichert'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/dashboard/setting/<setting_key>', methods=['POST'])
+@login_required
+def save_single_dashboard_setting(setting_key):
+    """Speichert eine einzelne Dashboard-Einstellung"""
+    try:
+        user_id = session.get('user_id')
+        data = request.get_json()
+        
+        print(f"💾 Saving setting {setting_key} for user_id: {user_id}, data: {data}")
+        
+        if user_id is None:
+            return jsonify({'success': False, 'error': 'Keine Benutzer-ID in Session gefunden'})
+        
+        if not data or 'value' not in data:
+            return jsonify({'success': False, 'error': 'Kein Wert übermittelt'})
+        
+        value = data['value']
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Konvertiere zu JSON String falls nötig
+        import json
+        value_str = json.dumps(value) if not isinstance(value, str) else str(value)
+        
+        # INSERT OR REPLACE
+        cursor.execute('''
+            INSERT OR REPLACE INTO dashboard_settings 
+            (user_id, setting_key, setting_value, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ''', (user_id, setting_key, value_str))
+        
+        connection.commit()
+        print(f"✅ Setting {setting_key} = {value} saved to database for user {user_id}")
+        
+        # Verifikation: Prüfe ob es wirklich gespeichert wurde
+        cursor.execute('SELECT setting_value FROM dashboard_settings WHERE user_id = ? AND setting_key = ?', 
+                      (user_id, setting_key))
+        saved_value = cursor.fetchone()
+        if saved_value:
+            print(f"✅ Verification: {setting_key} is now {saved_value[0]} in database")
+        else:
+            print(f"❌ Verification failed: {setting_key} not found in database")
+        
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Einstellung {setting_key} gespeichert'
+        })
+        
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 

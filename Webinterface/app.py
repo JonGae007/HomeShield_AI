@@ -419,7 +419,9 @@ app.secret_key = generate_daily_secret_key()
 def get_db_connection():
     # Absoluter Pfad zur Datenbank im gleichen Verzeichnis wie app.py
     db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'homeshieldAI.db')
-    return sqlite3.connect(db_path)
+    connection = sqlite3.connect(db_path)
+    connection.row_factory = sqlite3.Row  # Enables column access by name
+    return connection
 
 def get_time_ago(timestamp_str):
     """Berechnet die Zeit seit einem Timestamp"""
@@ -1365,7 +1367,7 @@ def face_monitoring_status():
     cursor.execute("""
         SELECT COUNT(*) as count 
         FROM face_detections 
-        WHERE timestamp >= datetime('now', '-24 hours')
+        WHERE detected_at >= datetime('now', '-24 hours')
     """)
     recent_detections = cursor.fetchone()['count']
     connection.close()

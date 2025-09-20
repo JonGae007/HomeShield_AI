@@ -46,6 +46,267 @@ input[type="text"], input[type="password"] {
     font-size: 16px;
 }
 
+/* Gesichtserkennung Styles */
+.face-recognition-overview {
+    background: #1e2328;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid #3a3f47;
+}
+
+.face-stats-widget h3 {
+    color: #fff;
+    margin-bottom: 15px;
+    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.face-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.stat-item {
+    text-align: center;
+    background: #2a2f36;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #3a3f47;
+}
+
+.stat-number {
+    display: block;
+    font-size: 2em;
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 5px;
+}
+
+.stat-number.known { color: #4CAF50; }
+.stat-number.unknown { color: #f44336; }
+
+.stat-label {
+    font-size: 0.8em;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.recent-detections h4 {
+    color: #fff;
+    margin-bottom: 10px;
+    font-size: 1em;
+    border-bottom: 1px solid #3a3f47;
+    padding-bottom: 8px;
+}
+
+#recent-detections-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.detection-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    margin-bottom: 5px;
+    border-radius: 6px;
+    background: #2a2f36;
+    border-left: 3px solid #4CAF50;
+    font-size: 0.9em;
+}
+
+.detection-item.unknown {
+    border-left-color: #f44336;
+}
+
+.detection-name {
+    font-weight: 600;
+    color: #fff;
+}
+
+.detection-confidence {
+    color: #aaa;
+    font-size: 0.85em;
+}
+
+.detection-time {
+    color: #888;
+    font-size: 0.8em;
+}
+
+.no-detections {
+    text-align: center;
+    color: #666;
+    padding: 20px;
+    font-style: italic;
+}
+
+/* Monitoring Widget Styles */
+.monitoring-widget {
+    background: #1e2328;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 20px;
+    border: 1px solid #3a3f47;
+}
+
+.monitoring-widget h3 {
+    color: #fff;
+    margin-bottom: 15px;
+    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.monitoring-status {
+    background: #2a2f36;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #3a3f47;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.online {
+    background-color: #4CAF50;
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.3);
+}
+
+.status-dot.offline {
+    background-color: #f44336;
+    box-shadow: 0 0 8px rgba(244, 67, 54, 0.3);
+}
+
+.status-dot.loading {
+    background-color: #ff9800;
+    animation: pulse 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+    from { opacity: 1; }
+    to { opacity: 0.5; }
+}
+
+.status-text {
+    font-weight: 600;
+    color: #fff;
+}
+
+.monitoring-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.info-label {
+    color: #aaa;
+    font-size: 0.9em;
+}
+
+.info-value {
+    color: #fff;
+    font-weight: 500;
+}
+
+.monitoring-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.monitoring-controls .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.btn.btn-primary {
+    background: #4CAF50;
+    color: white;
+}
+
+.btn.btn-primary:hover {
+    background: #45a049;
+}
+
+.btn.btn-secondary {
+    background: #af1b1b;
+    color: white;
+}
+
+.btn.btn-secondary:hover {
+    background: #711010;
+}
+
+.btn.btn-small {
+    padding: 6px 12px;
+    font-size: 0.8em;
+}
+
+.interval-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.interval-control label {
+    color: #aaa;
+    font-size: 0.9em;
+    margin: 0;
+}
+
+.interval-control input {
+    width: 80px;
+    padding: 6px 8px;
+    border: 1px solid #3a3f47;
+    border-radius: 4px;
+    background: #232831;
+    color: #fff;
+    font-size: 0.9em;
+}
+
+.interval-control input:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 4px rgba(76, 175, 80, 0.3);
+}
+
 input[type="submit"] {
     background-color: #28a745;
     color: #FFFFFF;
@@ -211,59 +472,6 @@ footer {
     justify-content: space-between;
 }
 
-
-
-/* Kamera-Images werden über .camera-container img gesteuert */
-
-.widget p {
-    font-size: 16px;
-    color: #CCCCCC;
-    padding: 12px 16px 16px 16px;
-    margin: 0;
-}
-
-.widget::after {
-    position: absolute;
-    left: 14px;
-    bottom: 12px;
-    background: rgba(0,0,0,0.45);
-    border-radius: 8px;
-    padding: 4px 6px;
-    font-size: 18px;
-    line-height: 1;
-}
-
-/* place camera icon inside each widget (bottom-left) */
-.widget .camera-icon {
-    position: absolute;
-    bottom: 12px;
-    left: 12px;
-    width: 28px;
-    height: 28px;
-    z-index: 20;
-    background: rgba(0,0,0,0.35);
-    border-radius: 6px;
-    padding: 4px;
-}
-
-.widget .widget-footer {
-    position: relative;
-    background: #1F2630;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    padding-left: 12px;
-    border-radius: 0 0 8px 8px;
-}
-
-.widget .widget-footer .camera-icon {
-    position: static;
-    width: 24px;
-    height: 24px;
-    padding: 2px;
-    background: transparent;
-}
-
 /* Kamera-Status und Fehlermeldungen */
 .camera-status {
     display: inline-flex;
@@ -372,125 +580,55 @@ footer {
     margin-bottom: 8px;
 }
 
-/* Gesichter-Seite Styles */
-.faces-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr auto;
-    gap: 24px;
-    padding: 16px 24px 40px 0;
-    height: calc(100vh - 120px);
+/* Kamera-Images werden über .camera-container img gesteuert */
+
+.widget p {
+    font-size: 16px;
+    color: #CCCCCC;
+    padding: 12px 16px 16px 16px;
+    margin: 0;
 }
 
-.faces-section {
-    background-color: #232831;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-}
-
-.faces-section:last-child {
-    grid-column: 1 / -1;
-    height: fit-content;
-}
-
-.faces-section h2 {
-    margin: 0 0 16px 0;
-    color: #FFFFFF;
+.widget::after {
+    position: absolute;
+    left: 14px;
+    bottom: 12px;
+    background: rgba(0,0,0,0.45);
+    border-radius: 8px;
+    padding: 4px 6px;
     font-size: 18px;
-    font-weight: 600;
-    border-bottom: 2px solid #1F2630;
-    padding-bottom: 8px;
+    line-height: 1;
 }
 
-.known-faces-grid,
-.unknown-faces-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 16px;
-    min-height: 200px;
-}
-
-.face-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background-color: #1a1d23;
-    border-radius: 8px;
-    padding: 20px;
-    text-align: center;
-    color: #CCCCCC;
-    border: 2px dashed #444;
-}
-
-.face-icon {
-    font-size: 48px;
-    margin-bottom: 12px;
-    opacity: 0.6;
-}
-
-.face-placeholder p {
-    margin: 0 0 12px 0;
-    font-size: 14px;
-    color: #999;
-}
-
-.add-face-btn {
-    background-color: #007acc;
-    color: white;
-    border: none;
-    padding: 8px 16px;
+/* place camera icon inside each widget (bottom-left) */
+.widget .camera-icon {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    width: 28px;
+    height: 28px;
+    z-index: 20;
+    background: rgba(0,0,0,0.35);
     border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: background-color 0.2s;
+    padding: 4px;
 }
 
-.add-face-btn:hover {
-    background-color: #005a9e;
-}
-
-.face-settings {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.setting-item {
+.widget .widget-footer {
+    position: relative;
+    background: #1F2630;
+    height: 36px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 12px;
-    background-color: #1a1d23;
-    border-radius: 8px;
-    color: #FFFFFF;
+    padding-left: 12px;
+    border-radius: 0 0 8px 8px;
 }
 
-.setting-item label {
-    font-size: 14px;
-    color: #CCCCCC;
-    flex: 1;
-}
-
-.setting-item input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: #007acc;
-}
-
-.setting-item input[type="range"] {
-    flex: 0 0 150px;
-    margin-right: 12px;
-    accent-color: #007acc;
-}
-
-.range-value {
-    font-size: 14px;
-    color: #007acc;
-    font-weight: 600;
-    min-width: 40px;
-    text-align: right;
+.widget .widget-footer .camera-icon {
+    position: static;
+    width: 24px;
+    height: 24px;
+    padding: 2px;
+    background: transparent;
 }
 
 .cards-container {
@@ -789,4 +927,201 @@ footer {
     .form-row { grid-template-columns: 1fr; }
     .form-row-triple { grid-template-columns: 1fr; }
     .settings-card { margin: 0 16px; }
+}
+/* Face Recognition Styles */
+.face-recognition-status {
+    background: linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 12px;
+    border: 1px solid #4a5568;
+}
+
+.face-status-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.face-icon {
+    width: 18px;
+    height: 18px;
+    opacity: 0.8;
+}
+
+.face-status-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.face-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    font-size: 0.8rem;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.loading {
+    background: #3182ce;
+    animation: pulse 1.5s infinite;
+}
+
+.status-dot.online {
+    background: #38a169;
+}
+
+.status-dot.offline {
+    background: #e53e3e;
+}
+
+.status-dot.no-face {
+    background: #718096;
+}
+
+.status-dot.known-face {
+    background: #38a169;
+}
+
+.status-dot.unknown-face {
+    background: #ed8936;
+}
+
+.status-text {
+    color: #a0aec0;
+}
+
+/* Face Detection Info */
+.face-detection-info {
+    font-size: 0.85rem;
+}
+
+.known-faces {
+    margin-bottom: 8px;
+}
+
+.known-face-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    background: rgba(56, 161, 105, 0.1);
+    border-radius: 6px;
+    margin-bottom: 4px;
+    border-left: 3px solid #38a169;
+}
+
+.known-face-name {
+    font-weight: 500;
+    color: #68d391;
+}
+
+.face-confidence {
+    font-size: 0.75rem;
+    color: #9ae6b4;
+    background: rgba(56, 161, 105, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.unknown-faces {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: rgba(237, 137, 54, 0.1);
+    border-radius: 6px;
+    border-left: 3px solid #ed8936;
+    color: #fbb862;
+}
+
+.unknown-count {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.no-faces {
+    padding: 6px 8px;
+    background: rgba(113, 128, 150, 0.1);
+    border-radius: 6px;
+    border-left: 3px solid #718096;
+    color: #cbd5e0;
+    text-align: center;
+}
+
+/* Face Count Badges */
+.face-count-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.face-count-badge.known {
+    background: rgba(56, 161, 105, 0.2);
+    color: #68d391;
+}
+
+.face-count-badge.unknown {
+    background: rgba(237, 137, 54, 0.2);
+    color: #fbb862;
+}
+
+/* Animations */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.face-detection-info {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Responsive Face Recognition */
+@media (max-width: 768px) {
+    .face-recognition-status {
+        padding: 12px;
+    }
+    
+    .face-status-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .face-status-indicator {
+        margin-left: 0;
+    }
+}
+/* Adjust the image size within the button */
+.btn img {
+    width: 16px; /* Set a smaller width for the image */
+    height: 16px; /* Set a smaller height for the image */
 }

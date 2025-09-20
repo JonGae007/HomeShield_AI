@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/faces.css">
     <link rel="icon" type="image/x-icon" href="/static/icons/logo.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gesichter - HomeShieldAI</title>
+    <title>Gesichterverwaltung</title>
 </head>
 <body>
     <div class="sidebar">
@@ -17,6 +18,7 @@
             <li><a href="/dashboard"><img src="/static/icons/dashboard.png" alt="Dashboard Icon"> Dashboard</a></li>
             <li><a href="/recordings"><img src="/static/icons/play.png" alt="Recordings Icon"> Aufzeichnungen</a></li>
             <li><a href="/faces" class="active"><img src="/static/icons/face.png" alt="Face Icon"> Gesichter</a></li>
+            <li><a href="/logs"><img src="/static/icons/logs.png" alt="Logs Icon"> Logs</a></li>
             <li><a href="/settings"><img src="/static/icons/settings.png" alt="Settings Icon"> Einstellungen</a></li>
         </ul>
         <footer>
@@ -28,7 +30,119 @@
         {{ username }}
     </a>
     <div class="content">
-        <h1>Gesichtserkennung</h1>
-       
+        <div class="faces-header">
+            <h1>Gesichterverwaltung</h1>
+            <p class="faces-subtitle">Verwalten Sie bekannte Gesichter für die automatische Erkennung</p>
+        </div>
+
+        <!-- Alert Messages -->
+        {% if message %}
+        <div class="alert {% if message_type == 'error' %}alert-error{% else %}alert-success{% endif %}">
+            <span>{{ message }}</span>
+        </div>
+        {% endif %}
+
+        <!-- Faces Grid -->
+        <div class="faces-grid" id="facesGrid">
+            <!-- Add New Face Card -->
+            <div class="face-card add-face-card" onclick="openAddFaceModal()">
+                <div class="add-face-content">
+                    <div class="add-face-icon">+</div>
+                    <span class="add-face-text">Neues Gesicht</span>
+                </div>
+            </div>
+
+            <!-- Existing Faces Cards -->
+            {% for face in faces %}
+            <div class="face-card">
+                <div class="face-image-container">
+                    <img src="{{ url_for('static', filename='faces/' + face.image) }}" alt="{{ face.name }}" class="face-image">
+                    <div class="face-overlay">
+                        <button class="face-action-btn edit-btn" onclick="editFace('{{ face.id }}', '{{ face.name }}')">
+                            <span>✎</span>
+                        </button>
+                        <button class="face-action-btn delete-btn" onclick="deleteFace('{{ face.id }}', '{{ face.name }}')">
+                            <span>🗑</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="face-info">
+                    <h3 class="face-name">{{ face.name }}</h3>
+                    <p class="face-added">Hinzugefügt: {{ face.added_date }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Add Face Modal -->
+    <div id="addFaceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Neues Gesicht hinzufügen</h2>
+                <span class="close" onclick="closeAddFaceModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="add-method-selector">
+                    <button class="method-btn active" id="uploadBtn" onclick="selectMethod('upload')">
+                        <div class="method-icon">📁</div>
+                        <span>Bild hochladen</span>
+                    </button>
+                    <button class="method-btn" id="cameraBtn" onclick="selectMethod('camera')">
+                        <div class="method-icon">📷</div>
+                        <span>Kamerafoto</span>
+                    </button>
+                </div>
+
+                <form id="addFaceForm" action="/add_face" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="faceName">Name der Person:</label>
+                        <input type="text" id="faceName" name="name" required placeholder="Name eingeben...">
+                    </div>
+
+                    <!-- Upload Method -->
+                    <div id="uploadMethod" class="method-content active">
+                        <div class="form-group">
+                            <label for="faceImage">Foto auswählen:</label>
+                            <div class="file-upload-container">
+                                <input type="file" id="faceImage" name="image" accept="image/*" onchange="previewImage(this)">
+                                <label for="faceImage" class="file-upload-label">
+                                    <span class="upload-icon">📤</span>
+                                    <span class="upload-text">Klicken oder Datei hierher ziehen</span>
+                                </label>
+                            </div>
+                            <div id="imagePreview" class="image-preview"></div>
+                        </div>
+                    </div>
+
+                    <!-- Camera Method -->
+                    <div id="cameraMethod" class="method-content">
+                        <div class="camera-container">
+                            <div class="camera-selector">
+                                <label for="cameraSelect">Kamera auswählen:</label>
+                                <select id="cameraSelect" name="camera_id">
+                                    <option value="">Kamera wählen...</option>
+                                    {% for camera in cameras %}
+                                    <option value="{{ camera.id }}">{{ camera.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="camera-preview">
+                                <img id="cameraPreview" src="" alt="Kamera-Vorschau" style="display: none;">
+                                <button type="button" id="captureBtn" onclick="capturePhoto()" style="display: none;">Foto aufnehmen</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" onclick="closeAddFaceModal()">Abbrechen</button>
+                        <button type="submit" id="submitBtn">Gesicht hinzufügen</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='faces.js') }}"></script>
 </body>
 </html>

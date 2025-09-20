@@ -18,6 +18,7 @@
             <li><a href="/dashboard" class="active"><img src="/static/icons/dashboard.png" alt="Dashboard Icon"> Dashboard</a></li>
             <li><a href="/recordings"><img src="/static/icons/play.png" alt="Recordings Icon"> Aufzeichnungen</a></li>
             <li><a href="/faces"><img src="/static/icons/face.png" alt="Face Icon"> Gesichter</a></li>
+            <li><a href="/logs"><img src="/static/icons/logs.png" alt="Logs Icon"> Logs</a></li>
             <li><a href="/settings"><img src="/static/icons/settings.png" alt="Settings Icon"> Einstellungen</a></li>
         </ul>
         <footer>
@@ -29,6 +30,77 @@
         {{ username }}
     </a>
     <div class="content">
+        <!-- Gesichtserkennung Übersicht -->
+        <div class="face-recognition-overview">
+            <div class="face-stats-widget">
+                <h3>Gesichtserkennung - Live</h3>
+                <div class="face-stats">
+                    <div class="stat-item">
+                        <span class="stat-number" id="total-detections">0</span>
+                        <span class="stat-label">Heute erkannt</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number known" id="known-detections">0</span>
+                        <span class="stat-label">Bekannte</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number unknown" id="unknown-detections">0</span>
+                        <span class="stat-label">Unbekannte</span>
+                    </div>
+                </div>
+                <div class="recent-detections">
+                    <h4>Letzte Erkennungen:</h4>
+                    <div id="recent-detections-list">
+                        {% for detection in recent_detections %}
+                        <div class="detection-item {{ 'known' if detection.is_known else 'unknown' }}">
+                            <span class="detection-name">{{ detection.name }}</span>
+                            <span class="detection-confidence">{{ detection.confidence }}%</span>
+                            <span class="detection-time">{{ detection.time_ago }}</span>
+                        </div>
+                        {% endfor %}
+                        {% if not recent_detections %}
+                        <div class="no-detections">Noch keine Erkennungen heute</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Kontinuierliches Monitoring Widget -->
+            <div class="monitoring-widget">
+                <h3>Kontinuierliches Monitoring</h3>
+                <div class="monitoring-status">
+                    <div class="status-indicator" id="monitoring-status">
+                        <span class="status-dot offline"></span>
+                        <span class="status-text" id="monitoring-status-text">Gestoppt</span>
+                    </div>
+                    <div class="monitoring-info">
+                        <div class="info-item">
+                            <span class="info-label">Intervall:</span>
+                            <span class="info-value" id="monitoring-interval">15s</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Letzte Erkennung:</span>
+                            <span class="info-value" id="last-detection">Nie</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="monitoring-controls">
+                    <button class="btn btn-primary" id="start-monitoring-btn" onclick="startFaceMonitoring()">
+                        <img src="/static/icons/play.png" alt="Start"> Starten
+                    </button>
+                    <button class="btn btn-secondary" id="stop-monitoring-btn" onclick="stopFaceMonitoring()" style="display: none;">
+                        <img src="/static/icons/stop.png" alt="Stop"> Stoppen
+                    </button>
+                    <div class="interval-control">
+                        <label for="monitoring-interval-input">Intervall (Sekunden):</label>
+                        <input type="number" id="monitoring-interval-input" min="5" max="300" value="15">
+                        <button class="btn btn-small" onclick="updateMonitoringInterval()">Ändern</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <div class="dashboard-widgets">
             {% for camera in cameras %}
             <div class="widget" data-camera-id="{{ camera.id }}">
@@ -48,11 +120,14 @@
                         <p>Verbindung wird hergestellt...</p>
                     </div>
                     <div class="camera-error" id="error-{{ camera.id }}" style="display: none;">
-                        <img src="/static/pictures/static.png" alt="Kamera nicht verfügbar">
                         <p>Kamera nicht erreichbar</p>
                         <button class="retry-btn" onclick="retryCamera({{ camera.id }})">Erneut versuchen</button>
                     </div>
                 </div>
+                
+                <!-- Gesichtserkennung Status -->
+                
+                
                 <div class="widget-footer">
                     <img class="camera-icon" src="/static/icons/camera.png" alt="Camera Icon" 
                          onclick="capturePhoto({{ camera.id }}, '{{ camera.name }}')" 
@@ -228,14 +303,14 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Foto erfolgreich aufgenommen!');
+                    console.log('Foto erfolgreich aufgenommen!');
                 } else {
-                    alert('Fehler beim Aufnehmen des Fotos: ' + data.error);
+                    console.log('Fehler beim Aufnehmen des Fotos: ' + data.error);
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Fehler beim Aufnehmen des Fotos.');
+                console.log('Fehler beim Aufnehmen des Fotos.');
             })
             .finally(() => {
                 // Button wieder aktivieren
@@ -293,6 +368,580 @@
             
             // Set up periodic checks
             setInterval(checkAllCameras, 30000); // Check every 30 seconds
+            
+            // Initialize face recognition monitoring
+            initializeFaceRecognition();
+        });
+        
+        // Dashboard Settings Management
+        let dashboardSettings = {
+            monitoring_interval: 15,
+            monitoring_enabled: false,
+            auto_refresh: true,
+            refresh_interval: 30
+        };
+        
+        function loadDashboardSettings() {
+            console.log('📋 Loading dashboard settings...');
+            
+            return fetch('/api/dashboard/settings')
+                .then(response => {
+                    console.log('📡 Settings response status:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('📝 Settings response data:', data);
+                    if (data.success) {
+                        // Merge mit bestehenden Einstellungen
+                        const oldSettings = { ...dashboardSettings };
+                        dashboardSettings = { ...dashboardSettings, ...data.settings };
+                        console.log('✅ Dashboard settings loaded:');
+                        console.log('  - Old settings:', oldSettings);
+                        console.log('  - New settings:', dashboardSettings);
+                        
+                        // Wende geladene Einstellungen an
+                        applyDashboardSettings();
+                        return true;
+                    } else {
+                        console.error('❌ Error loading settings:', data.error);
+                        return false;
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error loading dashboard settings:', error);
+                    // Bei Fehler trotzdem die Standard-Einstellungen anwenden
+                    applyDashboardSettings();
+                    return false;
+                });
+        }
+        
+        function saveDashboardSettings() {
+            console.log('💾 Saving dashboard settings:', dashboardSettings);
+            
+            return fetch('/api/dashboard/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    settings: dashboardSettings
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('✅ Settings saved successfully');
+                    return true;
+                } else {
+                    console.error('❌ Error saving settings:', data.error);
+                    return false;
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error saving dashboard settings:', error);
+                return false;
+            });
+        }
+        
+        function saveSingleSetting(key, value) {
+            dashboardSettings[key] = value;
+            
+            console.log(`🔄 Attempting to save setting ${key} = ${value}`);
+            
+            return fetch(`/api/dashboard/setting/${key}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ value: value })
+            })
+            .then(response => {
+                console.log(`📡 Response status for ${key}:`, response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`📝 Response data for ${key}:`, data);
+                if (data.success) {
+                    console.log(`✅ Setting ${key} saved: ${value}`);
+                    return true;
+                } else {
+                    console.error(`❌ Error saving setting ${key}:`, data.error);
+                    return false;
+                }
+            })
+            .catch(error => {
+                console.error(`❌ Error saving setting ${key}:`, error);
+                return false;
+            });
+        }
+        
+        function applyDashboardSettings() {
+            console.log('🔧 Applying dashboard settings...', dashboardSettings);
+            
+            // Monitoring-Intervall anwenden
+            const intervalInput = document.getElementById('monitoring-interval-input');
+            if (intervalInput && dashboardSettings.monitoring_interval) {
+                intervalInput.value = dashboardSettings.monitoring_interval;
+                console.log(`📝 Set interval input to: ${dashboardSettings.monitoring_interval}`);
+            }
+            
+            // Monitoring-Intervall Display aktualisieren
+            const intervalDisplay = document.getElementById('monitoring-interval');
+            if (intervalDisplay && dashboardSettings.monitoring_interval) {
+                intervalDisplay.textContent = dashboardSettings.monitoring_interval + 's';
+                console.log(`📝 Set interval display to: ${dashboardSettings.monitoring_interval}s`);
+            }
+            
+            // Monitoring-Status anwenden (falls gespeichert)
+            if (dashboardSettings.monitoring_enabled === true) {
+                console.log('🔄 Auto-starting monitoring based on saved settings...');
+                // Warte kurz, dann starte das Monitoring
+                setTimeout(() => {
+                    updateMonitoringUI(true);
+                }, 1000);
+            } else if (dashboardSettings.monitoring_enabled === false) {
+                console.log('⏹️ Ensuring monitoring is stopped based on saved settings...');
+                updateMonitoringUI(false);
+            }
+            
+            console.log('✅ Dashboard settings applied successfully');
+        }
+
+        // Face Recognition Functions
+        function initializeFaceRecognition() {
+            console.log('🔍 Initializing face recognition monitoring...');
+            
+            // Start periodic updates for face recognition
+            updateAllFaceStatus();
+            setInterval(updateAllFaceStatus, 3000); // Update every 3 seconds
+        }
+        
+        function updateAllFaceStatus() {
+            fetch('/api/face_monitoring/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const cameras = data.cameras;
+                        
+                        // Update each camera's face recognition status
+                        Object.keys(cameras).forEach(cameraId => {
+                            updateCameraFaceStatus(parseInt(cameraId), cameras[cameraId]);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching face recognition status:', error);
+                });
+        }
+        
+        function updateCameraFaceStatus(cameraId, faceData) {
+            const indicator = document.getElementById(`face-indicator-${cameraId}`);
+            const info = document.getElementById(`face-info-${cameraId}`);
+            const knownFaces = document.getElementById(`known-faces-${cameraId}`);
+            const unknownFaces = document.getElementById(`unknown-faces-${cameraId}`);
+            const noFaces = document.getElementById(`no-faces-${cameraId}`);
+            
+            if (!indicator) return;
+            
+            const statusDot = indicator.querySelector('.status-dot');
+            const statusText = indicator.querySelector('.status-text');
+            
+            // Reset visibility
+            if (info) info.style.display = 'none';
+            if (knownFaces) knownFaces.innerHTML = '';
+            if (unknownFaces) unknownFaces.style.display = 'none';
+            if (noFaces) noFaces.style.display = 'none';
+            
+            if (!faceData.online) {
+                // Kamera offline
+                statusDot.className = 'status-dot offline';
+                statusText.textContent = 'Kamera offline';
+                return;
+            }
+            
+            if (!faceData.status) {
+                // Noch keine Daten
+                statusDot.className = 'status-dot loading';
+                statusText.textContent = 'Analysiere...';
+                return;
+            }
+            
+            // Zeige Info-Bereich
+            if (info) info.style.display = 'block';
+            
+            switch (faceData.status) {
+                case 'no_face':
+                    statusDot.className = 'status-dot no-face';
+                    statusText.textContent = 'Keine Gesichter';
+                    if (noFaces) {
+                        noFaces.style.display = 'block';
+                    }
+                    break;
+                    
+                case 'known_face':
+                    statusDot.className = 'status-dot known-face';
+                    statusText.textContent = 'Bekannte Person';
+                    displayKnownFaces(cameraId, faceData.known_faces || []);
+                    if (faceData.unknown_faces > 0) {
+                        displayUnknownFaces(cameraId, faceData.unknown_faces);
+                    }
+                    break;
+                    
+                case 'unknown_face':
+                    statusDot.className = 'status-dot unknown-face';
+                    statusText.textContent = 'Unbekannte Person';
+                    displayUnknownFaces(cameraId, faceData.unknown_faces || 1);
+                    break;
+                    
+                case 'error':
+                    statusDot.className = 'status-dot offline';
+                    statusText.textContent = 'Fehler';
+                    break;
+                    
+                default:
+                    statusDot.className = 'status-dot loading';
+                    statusText.textContent = 'Analysiere...';
+            }
+        }
+        
+        function displayKnownFaces(cameraId, knownFacesData) {
+            const container = document.getElementById(`known-faces-${cameraId}`);
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            knownFacesData.forEach(face => {
+                const faceItem = document.createElement('div');
+                faceItem.className = 'known-face-item';
+                
+                const confidence = Math.round(face.confidence * 100);
+                
+                faceItem.innerHTML = `
+                    <span class="known-face-name">${face.name}</span>
+                    <span class="face-confidence">${confidence}%</span>
+                `;
+                
+                container.appendChild(faceItem);
+            });
+        }
+        
+        function displayUnknownFaces(cameraId, count) {
+            const container = document.getElementById(`unknown-faces-${cameraId}`);
+            if (!container) return;
+            
+            const countSpan = container.querySelector('.unknown-count');
+            const textSpan = container.querySelector('.unknown-text');
+            
+            if (countSpan) countSpan.textContent = count;
+            if (textSpan) textSpan.textContent = count === 1 ? 'Unbekanntes Gesicht' : 'Unbekannte Gesichter';
+            
+            container.style.display = 'flex';
+        }
+
+        // Gesichtserkennung Funktionalität
+        function performFaceRecognition(cameraId) {
+            console.log(`Performing face recognition for camera ${cameraId}`);
+            
+            fetch(`/api/camera/${cameraId}/recognize_face`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log(`Face recognition successful for camera ${cameraId}:`, data);
+                    refreshRecentDetections();
+                    refreshStatistics();
+                } else {
+                    console.error(`Face recognition failed for camera ${cameraId}:`, data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error during face recognition:', error);
+            });
+        }
+
+        // Lade aktuelle Erkennungen
+        function refreshRecentDetections() {
+            fetch('/api/face_detections/recent?limit=5')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateRecentDetectionsList(data.detections);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading recent detections:', error);
+            });
+        }
+
+        // Update Recent Detections Liste
+        function updateRecentDetectionsList(detections) {
+            const list = document.getElementById('recent-detections-list');
+            if (!list) return;
+            
+            list.innerHTML = '';
+            
+            if (detections.length === 0) {
+                list.innerHTML = '<div class="no-detections">Noch keine Erkennungen heute</div>';
+                return;
+            }
+            
+            detections.forEach(detection => {
+                const item = document.createElement('div');
+                item.className = `detection-item ${detection.is_known ? 'known' : 'unknown'}`;
+                item.innerHTML = `
+                    <span class="detection-name">${detection.name}</span>
+                    <span class="detection-confidence">${detection.confidence}%</span>
+                    <span class="detection-time">${detection.time_ago}</span>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        // Lade Statistiken
+        function refreshStatistics() {
+            fetch('/api/face_detections/statistics')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateStatistics(data.statistics);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading statistics:', error);
+            });
+        }
+
+        // Update Statistiken
+        function updateStatistics(stats) {
+            const totalEl = document.getElementById('total-detections');
+            const knownEl = document.getElementById('known-detections');
+            const unknownEl = document.getElementById('unknown-detections');
+            
+            if (totalEl) totalEl.textContent = stats.today.total;
+            if (knownEl) knownEl.textContent = stats.today.known;
+            if (unknownEl) unknownEl.textContent = stats.today.unknown;
+        }
+
+        // Monitoring Control Functions
+        function startFaceMonitoring() {
+            const interval = document.getElementById('monitoring-interval-input').value;
+            
+            fetch('/api/face_monitoring/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({interval: parseInt(interval)})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateMonitoringUI(true);
+                    
+                    // Einstellungen speichern
+                    saveSingleSetting('monitoring_enabled', true);
+                    saveSingleSetting('monitoring_interval', parseInt(interval));
+                } else {
+                    console.log('Fehler beim Starten: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error starting monitoring:', error);
+                console.log('Fehler beim Starten des Monitorings');
+            });
+        }
+
+        function stopFaceMonitoring() {
+            fetch('/api/face_monitoring/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateMonitoringUI(false);
+                    
+                    // Einstellungen speichern
+                    saveSingleSetting('monitoring_enabled', false);
+                } else {
+                    console.log('Fehler beim Stoppen: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error stopping monitoring:', error);
+                console.log('Fehler beim Stoppen des Monitorings');
+            });
+        }
+
+        function updateMonitoringInterval() {
+            const interval = document.getElementById('monitoring-interval-input').value;
+            
+            fetch('/api/face_monitoring/interval', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({interval: parseInt(interval)})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('monitoring-interval').textContent = interval + 's';
+                    console.log('Intervall erfolgreich geändert!');
+                    
+                    // Einstellungen speichern
+                    saveSingleSetting('monitoring_interval', parseInt(interval));
+                } else {
+                    console.log('Fehler beim Ändern: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating interval:', error);
+                console.log('Fehler beim Ändern des Intervalls');
+            });
+        }
+
+        function updateMonitoringUI(isRunning) {
+            const statusDot = document.querySelector('#monitoring-status .status-dot');
+            const statusText = document.getElementById('monitoring-status-text');
+            const startBtn = document.getElementById('start-monitoring-btn');
+            const stopBtn = document.getElementById('stop-monitoring-btn');
+            
+            if (isRunning) {
+                statusDot.className = 'status-dot online';
+                statusText.textContent = 'Aktiv';
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-flex';
+            } else {
+                statusDot.className = 'status-dot offline';
+                statusText.textContent = 'Gestoppt';
+                startBtn.style.display = 'inline-flex';
+                stopBtn.style.display = 'none';
+            }
+        }
+
+        function updateMonitoringStatus() {
+            fetch('/api/face_monitoring/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.monitoring) {
+                        console.log('📊 Backend monitoring status:', data.monitoring);
+                        
+                        // Backend-Status im UI anzeigen
+                        updateMonitoringUI(data.monitoring.is_running);
+                        
+                        // Intervall aktualisieren (Backend hat Priorität)
+                        if (data.monitoring.interval) {
+                            document.getElementById('monitoring-interval').textContent = data.monitoring.interval + 's';
+                            document.getElementById('monitoring-interval-input').value = data.monitoring.interval;
+                            
+                            // Auch in lokalen Einstellungen aktualisieren
+                            dashboardSettings.monitoring_interval = data.monitoring.interval;
+                        }
+                        
+                        // Status in lokalen Einstellungen aktualisieren
+                        dashboardSettings.monitoring_enabled = data.monitoring.is_running;
+                        
+                        if (data.monitoring.last_detection) {
+                            const lastDetection = new Date(data.monitoring.last_detection);
+                            const timeAgo = getTimeAgo(lastDetection);
+                            document.getElementById('last-detection').textContent = timeAgo;
+                        } else {
+                            document.getElementById('last-detection').textContent = 'Nie';
+                        }
+                        
+                        console.log('✅ Monitoring status updated from backend');
+                    }
+                })
+                .catch(error => console.error('Error updating monitoring status:', error));
+        }
+
+        function getTimeAgo(date) {
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMins / 60);
+            
+            if (diffMins < 1) return 'Gerade eben';
+            if (diffMins < 60) return `vor ${diffMins} Min.`;
+            if (diffHours < 24) return `vor ${diffHours} Std.`;
+            return `vor ${Math.floor(diffHours / 24)} Tag(en)`;
+        }
+
+
+
+        // Initialize beim Laden der Seite
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Dashboard wird initialisiert...');
+            
+            // Lade Dashboard-Einstellungen zuerst
+            loadDashboardSettings().then(settingsLoaded => {
+                console.log('📋 Settings loaded, now updating monitoring status...');
+                
+                // Dann Backend-Status laden und synchronisieren
+                updateMonitoringStatus();
+                
+                // Dann den Rest initialisieren
+                refreshRecentDetections();
+                refreshStatistics();
+                
+                console.log('✅ Dashboard vollständig initialisiert');
+            }).catch(error => {
+                console.error('❌ Error during dashboard initialization:', error);
+                // Auch bei Fehler beim Laden der Einstellungen den Rest initialisieren
+                updateMonitoringStatus();
+                refreshRecentDetections();
+                refreshStatistics();
+            });
+            
+            // Auto-refresh basierend auf Einstellungen
+            setInterval(() => {
+                if (dashboardSettings.auto_refresh) {
+                    refreshRecentDetections();
+                    refreshStatistics();
+                    updateMonitoringStatus();
+                }
+            }, (dashboardSettings.refresh_interval || 30) * 1000);
+            
+            // Event Listener für Intervall-Eingabefeld
+            const intervalInput = document.getElementById('monitoring-interval-input');
+            if (intervalInput) {
+                intervalInput.addEventListener('change', function() {
+                    const newInterval = parseInt(this.value);
+                    if (newInterval >= 5 && newInterval <= 300) {
+                        console.log(`🔄 Interval manually changed to: ${newInterval}`);
+                        saveSingleSetting('monitoring_interval', newInterval);
+                        // Auch das Display aktualisieren
+                        const intervalDisplay = document.getElementById('monitoring-interval');
+                        if (intervalDisplay) {
+                            intervalDisplay.textContent = newInterval + 's';
+                        }
+                    }
+                });
+                
+                // Auch auf 'input' Event reagieren für sofortiges Feedback
+                intervalInput.addEventListener('input', function() {
+                    const newInterval = parseInt(this.value);
+                    if (newInterval >= 5 && newInterval <= 300) {
+                        const intervalDisplay = document.getElementById('monitoring-interval');
+                        if (intervalDisplay) {
+                            intervalDisplay.textContent = newInterval + 's';
+                        }
+                    }
+                });
+            }
         });
     </script>
 </body>

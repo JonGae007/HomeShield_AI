@@ -44,7 +44,6 @@
         </div>
         {% endif %}
 
-        <!-- Filter-Bereich -->
         <div class="filters-container">
             <h3>🔍 Filter</h3>
             <form method="GET" action="/logs" class="filters-form">
@@ -81,7 +80,6 @@
             </form>
         </div>
 
-        <!-- Statistiken -->
         <div class="stats-container">
             <div class="stats-card">
                 <div class="stats-number">{{ total_count }}</div>
@@ -97,7 +95,6 @@
             </div>
         </div>
 
-        <!-- Bulk-Aktionen -->
         {% if detections %}
         <div class="bulk-actions">
             <div class="bulk-selection">
@@ -112,7 +109,6 @@
         </div>
         {% endif %}
 
-        <!-- Erkennungs-Liste -->
         <div class="logs-container">
             {% if detections %}
             <div class="logs-table">
@@ -178,7 +174,6 @@
                 </table>
             </div>
 
-            <!-- Paginierung -->
             {% if total_pages > 1 %}
             <div class="pagination">
                 <div class="pagination-info">
@@ -222,7 +217,6 @@
         </div>
     </div>
 
-    <!-- Bestätigungs-Modal -->
     <div id="deleteModal" class="modal">
         <div class="modal-content">
             <h3>Erkennungen löschen</h3>

@@ -30,7 +30,6 @@
         {{ username }}
     </a>
     <div class="content">
-        <!-- Gesichtserkennung Übersicht -->
         <div class="face-recognition-overview">
             <div class="face-stats-widget">
                 <h3>Gesichtserkennung - Live</h3>
@@ -65,7 +64,6 @@
                 </div>
             </div>
             
-            <!-- Kontinuierliches Monitoring Widget -->
             <div class="monitoring-widget">
                 <h3>Kontinuierliches Monitoring</h3>
                 <div class="monitoring-status">
@@ -124,8 +122,7 @@
                         <button class="retry-btn" onclick="retryCamera({{ camera.id }})">Erneut versuchen</button>
                     </div>
                 </div>
-                
-                <!-- Gesichtserkennung Status -->
+            
                 
                 
                 <div class="widget-footer">
@@ -149,10 +146,9 @@
         </div>
     </div>
     <script>
-        // Kamera-Management
         const cameraRetryAttempts = {};
         const maxRetryAttempts = 3;
-        const retryDelay = 2000; // 2 Sekunden
+        const retryDelay = 2000;
 
         function initializeCamera(cameraId) {
             console.log(`Initializing camera ${cameraId}...`);
@@ -169,20 +165,18 @@
             const streamUrl = img.getAttribute('data-stream-url');
             console.log(`Camera ${cameraId} stream URL: ${streamUrl}`);
             
-            // Reset state
             img.style.display = 'none';
             placeholder.style.display = 'flex';
             errorDiv.style.display = 'none';
             updateCameraStatus(cameraId, 'loading');
             
-            // Initialize retry counter
+
             if (!(cameraId in cameraRetryAttempts)) {
                 cameraRetryAttempts[cameraId] = 0;
             }
             
-            // Direct approach: Try to load the stream directly without testing first
             console.log(`Camera ${cameraId}: Loading stream directly...`);
-            img.src = streamUrl + '&_t=' + Date.now(); // Add timestamp to prevent caching
+            img.src = streamUrl + '&_t=' + Date.now(); 
             
             img.onload = function() {
                 console.log(`Camera ${cameraId}: Stream loaded successfully, showing image`);
@@ -190,16 +184,14 @@
                 placeholder.style.display = 'none';
                 errorDiv.style.display = 'none';
                 updateCameraStatus(cameraId, 'online');
-                cameraRetryAttempts[cameraId] = 0; // Reset retry counter
+                cameraRetryAttempts[cameraId] = 0;
             };
             
             img.onerror = function() {
                 console.log(`Camera ${cameraId}: Stream failed to load directly`);
-                // Try with test image approach as fallback
                 tryWithTestImage(cameraId, img, placeholder, errorDiv, streamUrl);
             };
             
-            // Fallback timeout
             setTimeout(() => {
                 if (placeholder.style.display !== 'none') {
                     console.log(`Camera ${cameraId}: Direct load timeout, trying test image approach`);
@@ -211,22 +203,19 @@
         function tryWithTestImage(cameraId, img, placeholder, errorDiv, streamUrl) {
             console.log(`Camera ${cameraId}: Trying test image approach...`);
             
-            // Create a new image element to test the stream
             const testImg = new Image();
             
             testImg.onload = function() {
                 console.log(`Camera ${cameraId}: Test image loaded successfully`);
                 console.log(`Setting main image src to: ${streamUrl}`);
-                cameraRetryAttempts[cameraId] = 0; // Reset retry counter
+                cameraRetryAttempts[cameraId] = 0;
                 
-                // Show the actual stream
                 img.src = streamUrl + '&_t=' + Date.now();
                 img.style.display = 'block';
                 placeholder.style.display = 'none';
                 errorDiv.style.display = 'none';
                 updateCameraStatus(cameraId, 'online');
                 
-                // Set up error handling for the main image
                 img.onerror = function() {
                     console.log(`Camera ${cameraId}: Main image error after test success`);
                     showCameraError(cameraId);
@@ -238,8 +227,7 @@
                 showCameraError(cameraId);
             };
             
-            // Start loading test
-            testImg.src = streamUrl + '&_t=' + Date.now(); // Add timestamp to prevent caching
+            testImg.src = streamUrl + '&_t=' + Date.now();
         }
 
         function showCameraError(cameraId) {
@@ -252,7 +240,6 @@
             errorDiv.style.display = 'flex';
             updateCameraStatus(cameraId, 'offline');
             
-            // Auto-retry if under max attempts
             if (cameraRetryAttempts[cameraId] < maxRetryAttempts) {
                 cameraRetryAttempts[cameraId]++;
                 console.log(`Auto-retrying camera ${cameraId}, attempt ${cameraRetryAttempts[cameraId]}`);
@@ -265,7 +252,7 @@
 
         function retryCamera(cameraId) {
             console.log(`Manual retry for camera ${cameraId}`);
-            cameraRetryAttempts[cameraId] = 0; // Reset retry counter for manual retry
+            cameraRetryAttempts[cameraId] = 0;
             initializeCamera(cameraId);
         }
 
@@ -284,7 +271,6 @@
         }
 
         function capturePhoto(cameraId, cameraName) {
-            // Button deaktivieren während der Aufnahme
             const button = event.target;
             const originalSrc = button.src;
             button.style.opacity = '0.5';
@@ -313,13 +299,11 @@
                 console.log('Fehler beim Aufnehmen des Fotos.');
             })
             .finally(() => {
-                // Button wieder aktivieren
                 button.style.opacity = '1';
                 button.style.pointerEvents = 'auto';
             });
         }
 
-        // Periodische Überprüfung aller Kameras (alle 30 Sekunden)
         function checkAllCameras() {
             const widgets = document.querySelectorAll('.widget[data-camera-id]');
             widgets.forEach(widget => {
@@ -329,12 +313,10 @@
         }
 
         function checkCameraStatus(cameraId) {
-            // Backend-API nutzen für zuverlässige Status-Prüfung
             fetch(`/api/cameras/${cameraId}/status`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success && data.status === 'online') {
-                        // Kamera ist online, Stream neu initialisieren falls notwendig
                         const img = document.getElementById(`camera-${cameraId}`);
                         if (img && img.style.display === 'none') {
                             console.log(`Camera ${cameraId} is back online, reinitializing...`);
@@ -343,7 +325,6 @@
                             updateCameraStatus(cameraId, 'online');
                         }
                     } else {
-                        // Kamera ist offline
                         const img = document.getElementById(`camera-${cameraId}`);
                         if (img && img.style.display !== 'none') {
                             console.log(`Camera ${cameraId} went offline`);
@@ -359,21 +340,17 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Dashboard loaded, initializing cameras...');
             
-            // Initialize all cameras
             const widgets = document.querySelectorAll('.widget[data-camera-id]');
             widgets.forEach(widget => {
                 const cameraId = widget.getAttribute('data-camera-id');
-                setTimeout(() => initializeCamera(cameraId), 100 * cameraId); // Staggered initialization
+                setTimeout(() => initializeCamera(cameraId), 100 * cameraId);
             });
             
-            // Set up periodic checks
-            setInterval(checkAllCameras, 30000); // Check every 30 seconds
+            setInterval(checkAllCameras, 30000);
             
-            // Initialize face recognition monitoring
             initializeFaceRecognition();
         });
         
-        // Dashboard Settings Management
         let dashboardSettings = {
             monitoring_interval: 15,
             monitoring_enabled: false,
@@ -395,14 +372,12 @@
                 .then(data => {
                     console.log('📝 Settings response data:', data);
                     if (data.success) {
-                        // Merge mit bestehenden Einstellungen
                         const oldSettings = { ...dashboardSettings };
                         dashboardSettings = { ...dashboardSettings, ...data.settings };
                         console.log('✅ Dashboard settings loaded:');
                         console.log('  - Old settings:', oldSettings);
                         console.log('  - New settings:', dashboardSettings);
                         
-                        // Wende geladene Einstellungen an
                         applyDashboardSettings();
                         return true;
                     } else {
@@ -412,7 +387,6 @@
                 })
                 .catch(error => {
                     console.error('❌ Error loading dashboard settings:', error);
-                    // Bei Fehler trotzdem die Standard-Einstellungen anwenden
                     applyDashboardSettings();
                     return false;
                 });
@@ -484,24 +458,20 @@
         function applyDashboardSettings() {
             console.log('🔧 Applying dashboard settings...', dashboardSettings);
             
-            // Monitoring-Intervall anwenden
             const intervalInput = document.getElementById('monitoring-interval-input');
             if (intervalInput && dashboardSettings.monitoring_interval) {
                 intervalInput.value = dashboardSettings.monitoring_interval;
                 console.log(`📝 Set interval input to: ${dashboardSettings.monitoring_interval}`);
             }
             
-            // Monitoring-Intervall Display aktualisieren
             const intervalDisplay = document.getElementById('monitoring-interval');
             if (intervalDisplay && dashboardSettings.monitoring_interval) {
                 intervalDisplay.textContent = dashboardSettings.monitoring_interval + 's';
                 console.log(`📝 Set interval display to: ${dashboardSettings.monitoring_interval}s`);
             }
             
-            // Monitoring-Status anwenden (falls gespeichert)
             if (dashboardSettings.monitoring_enabled === true) {
                 console.log('🔄 Auto-starting monitoring based on saved settings...');
-                // Warte kurz, dann starte das Monitoring
                 setTimeout(() => {
                     updateMonitoringUI(true);
                 }, 1000);
@@ -513,13 +483,11 @@
             console.log('✅ Dashboard settings applied successfully');
         }
 
-        // Face Recognition Functions
         function initializeFaceRecognition() {
             console.log('🔍 Initializing face recognition monitoring...');
             
-            // Start periodic updates for face recognition
             updateAllFaceStatus();
-            setInterval(updateAllFaceStatus, 3000); // Update every 3 seconds
+            setInterval(updateAllFaceStatus, 3000); 
         }
         
         function updateAllFaceStatus() {
@@ -529,7 +497,6 @@
                     if (data.success) {
                         const cameras = data.cameras;
                         
-                        // Update each camera's face recognition status
                         Object.keys(cameras).forEach(cameraId => {
                             updateCameraFaceStatus(parseInt(cameraId), cameras[cameraId]);
                         });
@@ -552,27 +519,23 @@
             const statusDot = indicator.querySelector('.status-dot');
             const statusText = indicator.querySelector('.status-text');
             
-            // Reset visibility
             if (info) info.style.display = 'none';
             if (knownFaces) knownFaces.innerHTML = '';
             if (unknownFaces) unknownFaces.style.display = 'none';
             if (noFaces) noFaces.style.display = 'none';
             
             if (!faceData.online) {
-                // Kamera offline
                 statusDot.className = 'status-dot offline';
                 statusText.textContent = 'Kamera offline';
                 return;
             }
             
             if (!faceData.status) {
-                // Noch keine Daten
                 statusDot.className = 'status-dot loading';
                 statusText.textContent = 'Analysiere...';
                 return;
             }
             
-            // Zeige Info-Bereich
             if (info) info.style.display = 'block';
             
             switch (faceData.status) {
@@ -644,7 +607,6 @@
             container.style.display = 'flex';
         }
 
-        // Gesichtserkennung Funktionalität
         function performFaceRecognition(cameraId) {
             console.log(`Performing face recognition for camera ${cameraId}`);
             
@@ -669,7 +631,6 @@
             });
         }
 
-        // Lade aktuelle Erkennungen
         function refreshRecentDetections() {
             fetch('/api/face_detections/recent?limit=5')
             .then(response => response.json())
@@ -683,7 +644,6 @@
             });
         }
 
-        // Update Recent Detections Liste
         function updateRecentDetectionsList(detections) {
             const list = document.getElementById('recent-detections-list');
             if (!list) return;
@@ -707,7 +667,6 @@
             });
         }
 
-        // Lade Statistiken
         function refreshStatistics() {
             fetch('/api/face_detections/statistics')
             .then(response => response.json())
@@ -721,7 +680,6 @@
             });
         }
 
-        // Update Statistiken
         function updateStatistics(stats) {
             const totalEl = document.getElementById('total-detections');
             const knownEl = document.getElementById('known-detections');
@@ -732,7 +690,6 @@
             if (unknownEl) unknownEl.textContent = stats.today.unknown;
         }
 
-        // Monitoring Control Functions
         function startFaceMonitoring() {
             const interval = document.getElementById('monitoring-interval-input').value;
             
@@ -748,7 +705,6 @@
                 if (data.success) {
                     updateMonitoringUI(true);
                     
-                    // Einstellungen speichern
                     saveSingleSetting('monitoring_enabled', true);
                     saveSingleSetting('monitoring_interval', parseInt(interval));
                 } else {
@@ -773,7 +729,6 @@
                 if (data.success) {
                     updateMonitoringUI(false);
                     
-                    // Einstellungen speichern
                     saveSingleSetting('monitoring_enabled', false);
                 } else {
                     console.log('Fehler beim Stoppen: ' + data.error);
@@ -801,7 +756,6 @@
                     document.getElementById('monitoring-interval').textContent = interval + 's';
                     console.log('Intervall erfolgreich geändert!');
                     
-                    // Einstellungen speichern
                     saveSingleSetting('monitoring_interval', parseInt(interval));
                 } else {
                     console.log('Fehler beim Ändern: ' + data.error);
@@ -839,19 +793,15 @@
                     if (data.monitoring) {
                         console.log('📊 Backend monitoring status:', data.monitoring);
                         
-                        // Backend-Status im UI anzeigen
                         updateMonitoringUI(data.monitoring.is_running);
                         
-                        // Intervall aktualisieren (Backend hat Priorität)
                         if (data.monitoring.interval) {
                             document.getElementById('monitoring-interval').textContent = data.monitoring.interval + 's';
                             document.getElementById('monitoring-interval-input').value = data.monitoring.interval;
                             
-                            // Auch in lokalen Einstellungen aktualisieren
                             dashboardSettings.monitoring_interval = data.monitoring.interval;
                         }
                         
-                        // Status in lokalen Einstellungen aktualisieren
                         dashboardSettings.monitoring_enabled = data.monitoring.is_running;
                         
                         if (data.monitoring.last_detection) {
@@ -882,31 +832,25 @@
 
 
 
-        // Initialize beim Laden der Seite
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Dashboard wird initialisiert...');
             
-            // Lade Dashboard-Einstellungen zuerst
             loadDashboardSettings().then(settingsLoaded => {
                 console.log('📋 Settings loaded, now updating monitoring status...');
                 
-                // Dann Backend-Status laden und synchronisieren
                 updateMonitoringStatus();
                 
-                // Dann den Rest initialisieren
                 refreshRecentDetections();
                 refreshStatistics();
                 
                 console.log('✅ Dashboard vollständig initialisiert');
             }).catch(error => {
                 console.error('❌ Error during dashboard initialization:', error);
-                // Auch bei Fehler beim Laden der Einstellungen den Rest initialisieren
                 updateMonitoringStatus();
                 refreshRecentDetections();
                 refreshStatistics();
             });
             
-            // Auto-refresh basierend auf Einstellungen
             setInterval(() => {
                 if (dashboardSettings.auto_refresh) {
                     refreshRecentDetections();
@@ -914,8 +858,7 @@
                     updateMonitoringStatus();
                 }
             }, (dashboardSettings.refresh_interval || 30) * 1000);
-            
-            // Event Listener für Intervall-Eingabefeld
+
             const intervalInput = document.getElementById('monitoring-interval-input');
             if (intervalInput) {
                 intervalInput.addEventListener('change', function() {
@@ -923,7 +866,6 @@
                     if (newInterval >= 5 && newInterval <= 300) {
                         console.log(`🔄 Interval manually changed to: ${newInterval}`);
                         saveSingleSetting('monitoring_interval', newInterval);
-                        // Auch das Display aktualisieren
                         const intervalDisplay = document.getElementById('monitoring-interval');
                         if (intervalDisplay) {
                             intervalDisplay.textContent = newInterval + 's';
@@ -931,7 +873,6 @@
                     }
                 });
                 
-                // Auch auf 'input' Event reagieren für sofortiges Feedback
                 intervalInput.addEventListener('input', function() {
                     const newInterval = parseInt(this.value);
                     if (newInterval >= 5 && newInterval <= 300) {

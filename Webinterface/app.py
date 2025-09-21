@@ -18,6 +18,32 @@ import io
 
 
 app = Flask(__name__)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILENAME = 'homeshieldAI.db'
+
+def get_base_dir():  # Basisverzeichnis zurückgeben
+    """Return absolute path of the webinterface directory (where app.py lives)."""
+    return BASE_DIR
+
+def get_db_path():  # DB-Pfad zurückgeben
+    """Return absolute path to the sqlite database file."""
+    return os.path.join(get_base_dir(), DB_FILENAME)
+
+def get_faces_json_path():  # Pfad zur Gesichter-JSON
+    """Return absolute path to the known faces JSON (external folder)."""
+    return os.path.join(os.path.dirname(get_base_dir()), 'Gesichtserkennung', 'bekannte_gesichter.json')
+
+def get_static_faces_dir():  # Static-Faces-Verzeichnis sicherstellen
+    """Return absolute path to the `static/faces` folder for web access."""
+    path = os.path.join(get_base_dir(), 'static', 'faces')
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def fetch_camera_snapshot(ip_address, timeout=5, user_agent='HomeShieldAI/1.0'):  # Kamera-Snapshot holen
+    """Fetch a snapshot from an IP camera URL. Returns requests.Response or raises."""
+    url = f"http://{ip_address}/?action=snapshot"
+    headers = {'User-Agent': user_agent}
+    return requests.get(url, timeout=timeout, headers=headers)
 
 class FastFaceRecognition:
     """
@@ -27,43 +53,37 @@ class FastFaceRecognition:
     - Thread-sicher
     - Logging aller Erkennungen
     """
-    def __init__(self):
+    def __init__(self):  # Initialisiere Face-Recognizer
         self._lock = threading.RLock()
-        self.known_faces = []  # Liste: {'name': str, 'encoding': np.array}
-        self.detection_log = []  # Liste der letzten Erkennungen
-        self._faces_json_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            'Gesichtserkennung',
-            'bekannte_gesichter.json'
-        )
+        self.known_faces = []
+        self.detection_log = []
+        self._faces_json_path = get_faces_json_path()
         self._load_known_faces()
     
-    def _load_known_faces(self):
+    def _load_known_faces(self):  # Lade bekannte Gesichter
         """Lädt bekannte Gesichter und erstellt Encodings"""
         with self._lock:
             self.known_faces = []
-            
+
             if not os.path.exists(self._faces_json_path):
                 print("❌ Keine bekannten Gesichter gefunden")
                 return
-            
+
             try:
                 with open(self._faces_json_path, 'r', encoding='utf-8') as f:
                     faces_data = json.load(f)
-                
-                # Bilder sind im static/faces Ordner gespeichert
-                faces_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'faces')
-                
+
+                faces_dir = get_static_faces_dir()
+
                 for face_data in faces_data:
                     name = face_data['Name']
                     image_file = face_data['Image']
                     image_path = os.path.join(faces_dir, image_file)
-                    
+
                     if os.path.exists(image_path):
-                        # Lade Bild und erstelle Encoding
                         image = fr.load_image_file(image_path)
                         encodings = fr.face_encodings(image)
-                        
+
                         if encodings:
                             self.known_faces.append({
                                 'name': name,
@@ -74,67 +94,57 @@ class FastFaceRecognition:
                             print(f"⚠️ Kein Gesicht gefunden in {image_file}")
                     else:
                         print(f"⚠️ Bild nicht gefunden: {image_path}")
-                
+
                 print(f"✅ {len(self.known_faces)} bekannte Gesichter geladen")
-                
+
             except Exception as e:
                 print(f"❌ Fehler beim Laden der Gesichter: {e}")
     
-    def detect_faces_in_image(self, image_data, camera_id=None):
+    def detect_faces_in_image(self, image_data, camera_id=None):  # Erkenne Gesichter in Bild
         """
         Erkennt alle Gesichter in einem Bild
         Rückgabe: {'faces': [{'name': str|'Unbekannt', 'confidence': float, 'location': tuple}]}
         """
         with self._lock:
             try:
-                # Konvertiere Bilddaten
                 if isinstance(image_data, bytes):
-                    # Von bytes zu PIL Image zu numpy array
                     pil_image = Image.open(io.BytesIO(image_data))
                     image = np.array(pil_image)
                 else:
-                    # Direkt als numpy array verwenden
                     image = image_data
-                
-                # RGB konvertierung falls nötig
+
                 if len(image.shape) == 3 and image.shape[2] == 3:
-                    # Bereits RGB
                     rgb_image = image
                 else:
                     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                
-                # Gesichter finden
-                face_locations = fr.face_locations(rgb_image, model="hog")  # "hog" ist schneller als "cnn"
+
+                face_locations = fr.face_locations(rgb_image, model="hog")
                 face_encodings = fr.face_encodings(rgb_image, face_locations)
                 
                 detected_faces = []
                 
                 for face_encoding, face_location in zip(face_encodings, face_locations):
-                    # Vergleiche mit bekannten Gesichtern
                     name = "Unbekannt"
                     confidence = 0.0
-                    
+
                     if self.known_faces:
-                        # Berechne Distanzen zu allen bekannten Gesichtern
                         known_encodings = [kf['encoding'] for kf in self.known_faces]
                         matches = fr.compare_faces(known_encodings, face_encoding, tolerance=0.5)
                         face_distances = fr.face_distance(known_encodings, face_encoding)
-                        
+
                         if True in matches:
-                            # Finde beste Übereinstimmung
                             best_match_index = np.argmin(face_distances)
                             if matches[best_match_index]:
                                 name = self.known_faces[best_match_index]['name']
-                                confidence = 1.0 - face_distances[best_match_index]  # Je kleiner die Distanz, desto höher die Confidence
-                    
+                                confidence = 1.0 - face_distances[best_match_index]
+
                     detected_faces.append({
                         'name': name,
                         'confidence': float(confidence),
-                        'location': face_location,  # (top, right, bottom, left)
+                        'location': face_location,
                         'is_known': name != "Unbekannt"
                     })
                 
-                # Log the detection
                 self._log_detection(detected_faces, camera_id=camera_id)
                 
                 return {'faces': detected_faces, 'total_faces': len(detected_faces)}
@@ -143,10 +153,10 @@ class FastFaceRecognition:
                 print(f"❌ Fehler bei Gesichtserkennung: {e}")
                 return {'faces': [], 'total_faces': 0}
     
-    def _log_detection(self, detected_faces, camera_id=None):
+    def _log_detection(self, detected_faces, camera_id=None):  # Erkennung in DB loggen
         """Loggt Gesichtserkennungen in die Datenbank"""
         timestamp = datetime.datetime.now()
-        
+
         for face in detected_faces:
             detection_entry = {
                 'timestamp': timestamp.isoformat(),
@@ -154,10 +164,9 @@ class FastFaceRecognition:
                 'confidence': face['confidence'],
                 'is_known': face['is_known']
             }
-            
+
             self.detection_log.append(detection_entry)
-            
-            # Speichere in Datenbank
+
             try:
                 connection = get_db_connection()
                 cursor = connection.cursor()
@@ -169,12 +178,11 @@ class FastFaceRecognition:
                 connection.close()
             except Exception as e:
                 print(f"❌ Fehler beim Speichern der Erkennung: {e}")
-        
-        # Halte Log-Liste klein (nur letzte 100 Einträge)
+
         if len(self.detection_log) > 100:
             self.detection_log = self.detection_log[-100:]
     
-    def get_recent_detections(self, limit=50):
+    def get_recent_detections(self, limit=50):  # Letzte Erkennungen zurückgeben
         """Gibt die letzten Erkennungen zurück"""
         try:
             connection = get_db_connection()
@@ -202,38 +210,38 @@ class FastFaceRecognition:
             print(f"❌ Fehler beim Laden der Erkennungen: {e}")
             return self.detection_log[-limit:] if self.detection_log else []
     
-    def reload_known_faces(self):
+    def reload_known_faces(self):  # Bekannte Gesichter neu laden
         """Lädt bekannte Gesichter neu"""
         self._load_known_faces()
 
-class FaceMonitoringService:
+class FaceMonitoringService:  # Hintergrund-Monitoring-Service
     """Service für kontinuierliche Gesichtserkennung im Hintergrund"""
-    
-    def __init__(self, face_recognizer, monitoring_interval=10):
+
+    def __init__(self, face_recognizer, monitoring_interval=10):  # Initialisiere Monitoring-Service
         self.face_recognizer = face_recognizer
-        self.monitoring_interval = monitoring_interval  # Sekunden zwischen Checks
+        self.monitoring_interval = monitoring_interval
         self.is_running = False
         self.monitoring_thread = None
         self.last_detection_time = None
         self.active_cameras = []
         self._lock = threading.RLock()
-        self.auto_start_enabled = False  # Flag ob automatisch starten
-        
-    def load_settings_from_db(self, user_id):
+        self.auto_start_enabled = False
+
+    def load_settings_from_db(self, user_id):  # Lade Monitoring-Einstellungen
         """Lädt Monitoring-Einstellungen aus der Datenbank für einen Benutzer"""
         try:
             connection = get_db_connection()
             cursor = connection.cursor()
-            
+
             cursor.execute('''
                 SELECT setting_key, setting_value 
                 FROM dashboard_settings 
                 WHERE user_id = ? AND setting_key IN ('monitoring_interval', 'monitoring_enabled')
             ''', (user_id,))
-            
+
             settings = cursor.fetchall()
             connection.close()
-            
+
             for key, value in settings:
                 if key == 'monitoring_interval':
                     try:
@@ -252,66 +260,64 @@ class FaceMonitoringService:
                             self.start_monitoring()
                     except:
                         pass
-                        
+
         except Exception as e:
             print(f"❌ Fehler beim Laden der Monitoring-Einstellungen: {e}")
     
-    def save_settings_to_db(self, user_id):
+    def save_settings_to_db(self, user_id):  # Speichere Monitoring-Einstellungen
         """Speichert aktuelle Monitoring-Einstellungen in die Datenbank"""
         try:
             connection = get_db_connection()
             cursor = connection.cursor()
-            
-            # Speichere Intervall
+
             cursor.execute('''
                 INSERT OR REPLACE INTO dashboard_settings 
                 (user_id, setting_key, setting_value, updated_at)
                 VALUES (?, 'monitoring_interval', ?, CURRENT_TIMESTAMP)
             ''', (user_id, str(self.monitoring_interval)))
-            
-            # Speichere Status
+
             cursor.execute('''
                 INSERT OR REPLACE INTO dashboard_settings 
                 (user_id, setting_key, setting_value, updated_at)
                 VALUES (?, 'monitoring_enabled', ?, CURRENT_TIMESTAMP)
             ''', (user_id, str(self.is_running)))
-            
+
             connection.commit()
             connection.close()
-            
+
         except Exception as e:
             print(f"❌ Fehler beim Speichern der Monitoring-Einstellungen: {e}")
         
-    def start_monitoring(self):
+    def start_monitoring(self):  # Starte Monitoring-Thread
         """Startet das kontinuierliche Monitoring"""
         with self._lock:
             if self.is_running:
                 print("⚠️ Monitoring läuft bereits")
                 return
-                
+
             self.is_running = True
             self.monitoring_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
             self.monitoring_thread.start()
             print(f"✅ Face Monitoring gestartet (Intervall: {self.monitoring_interval}s)")
     
-    def stop_monitoring(self):
+    def stop_monitoring(self):  # Stoppe Monitoring-Thread
         """Stoppt das kontinuierliche Monitoring"""
         with self._lock:
             if not self.is_running:
                 return
-                
+
             self.is_running = False
             if self.monitoring_thread:
                 self.monitoring_thread.join(timeout=2)
             print("🛑 Face Monitoring gestoppt")
     
-    def set_interval(self, seconds):
+    def set_interval(self, seconds):  # Setze Monitoring-Intervall
         """Ändert das Monitoring-Intervall"""
         with self._lock:
-            self.monitoring_interval = max(5, min(300, seconds))  # 5-300 Sekunden
+            self.monitoring_interval = max(5, min(300, seconds))
             print(f"⚙️ Monitoring-Intervall auf {self.monitoring_interval}s gesetzt")
     
-    def get_status(self):
+    def get_status(self):  # Status des Monitorings zurückgeben
         """Gibt aktuellen Status zurück"""
         return {
             'is_running': self.is_running,
@@ -320,7 +326,7 @@ class FaceMonitoringService:
             'active_cameras': len(self.active_cameras)
         }
     
-    def _get_active_cameras(self):
+    def _get_active_cameras(self):  # Lade aktive Kameras
         """Holt aktive Kameras aus der Datenbank"""
         try:
             connection = get_db_connection()
@@ -328,102 +334,91 @@ class FaceMonitoringService:
             cursor.execute("SELECT id, ip_address, name FROM camera_settings ORDER BY id")
             cameras = cursor.fetchall()
             connection.close()
-            
+
             active_cameras = []
             for camera in cameras:
-                # Kurzer Ping-Test ob Kamera erreichbar ist
                 try:
                     response = requests.get(f"http://{camera[1]}/?action=snapshot", timeout=2)
                     if response.status_code == 200:
                         active_cameras.append({
                             'id': camera[0],
-                            'ip': camera[1], 
+                            'ip': camera[1],
                             'name': camera[2]
                         })
                 except:
-                    pass  # Kamera offline oder nicht erreichbar
-                    
+                    pass
+
             return active_cameras
-            
+
         except Exception as e:
             print(f"❌ Fehler beim Laden der Kameras: {e}")
             return []
     
-    def _monitoring_loop(self):
+    def _monitoring_loop(self):  # Hauptschleife des Monitorings
         """Hauptschleife für kontinuierliches Monitoring"""
         print("🔄 Face Monitoring Loop gestartet")
-        
+
         while self.is_running:
             try:
-                # Aktive Kameras aktualisieren (alle 5 Zyklen)
                 if len(self.active_cameras) == 0 or (hasattr(self, '_camera_check_counter') and self._camera_check_counter % 5 == 0):
                     self.active_cameras = self._get_active_cameras()
                     print(f"📹 {len(self.active_cameras)} aktive Kameras gefunden")
-                
+
                 if not hasattr(self, '_camera_check_counter'):
                     self._camera_check_counter = 0
                 self._camera_check_counter += 1
-                
-                # Überwache jede aktive Kamera
+
                 for camera in self.active_cameras:
                     if not self.is_running:
                         break
-                        
+
                     try:
-                        # Foto von Kamera aufnehmen
                         response = requests.get(f"http://{camera['ip']}/?action=snapshot", timeout=3)
-                        
+
                         if response.status_code == 200:
-                            # Gesichtserkennung durchführen
                             result = self.face_recognizer.detect_faces_in_image(response.content)
-                            
+
                             if result['total_faces'] > 0:
                                 self.last_detection_time = datetime.datetime.now()
-                                
-                                # Bekannte Gesichter gefunden?
+
                                 known_faces = [f for f in result['faces'] if f['is_known']]
                                 if known_faces:
                                     print(f"👤 {len(known_faces)} bekannte(s) Gesicht(er) erkannt auf {camera['name']}")
                                     for face in known_faces:
                                         print(f"   - {face['name']} (Confidence: {face['confidence']:.2f})")
-                                
+
                                 unknown_faces = [f for f in result['faces'] if not f['is_known']]
                                 if unknown_faces:
                                     print(f"❓ {len(unknown_faces)} unbekannte(s) Gesicht(er) erkannt auf {camera['name']}")
-                            
-                    except Exception as e:
-                        # Stille Fehler für bessere Performance
+
+                    except Exception:
                         pass
-                
-                # Warte bis zum nächsten Zyklus
+
                 time.sleep(self.monitoring_interval)
-                
+
             except Exception as e:
                 print(f"❌ Fehler im Monitoring Loop: {e}")
-                time.sleep(5)  # Kurze Pause bei Fehlern
-        
+                time.sleep(5)
+
         print("🔚 Face Monitoring Loop beendet")
 
-# Globale Instanzen
 face_recognition = FastFaceRecognition()
-face_monitoring = FaceMonitoringService(face_recognition, monitoring_interval=15)  # Alle 15 Sekunden
+face_monitoring = FaceMonitoringService(face_recognition, monitoring_interval=15)
 
-# Jeden Tag neuer Schlüssel
-def generate_daily_secret_key():
+def generate_daily_secret_key():  # Täglichen Secret-Key generieren
     today = datetime.date.today().isoformat()
-    random_bytes = os.urandom(16)  # Zufallswert für zusätzlichen Schutz
+    random_bytes = os.urandom(16)
     return hashlib.sha256((today + str(random_bytes)).encode()).hexdigest()
 
 app.secret_key = generate_daily_secret_key()
 
-def get_db_connection():
-    # Absoluter Pfad zur Datenbank im gleichen Verzeichnis wie app.py
-    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'homeshieldAI.db')
+def get_db_connection():  # DB-Verbindung öffnen
+    db_path = get_db_path()
     connection = sqlite3.connect(db_path)
-    connection.row_factory = sqlite3.Row  # Enables column access by name
+    connection.row_factory = sqlite3.Row
     return connection
 
-def get_time_ago(timestamp_str):
+def get_time_ago(timestamp_str):  # Zeit seit Timestamp berechnen
     """Berechnet die Zeit seit einem Timestamp"""
     try:
         timestamp = datetime.datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
@@ -443,29 +438,29 @@ def get_time_ago(timestamp_str):
     except:
         return "unbekannt"
 
-def check_login(username, password):
+def check_login(username, password):  # Prüfe Login-Daten
     connection = get_db_connection()
     cursor = connection.cursor()
     hashed_password = hashlib.sha256(password.encode()).hexdigest()
     cursor.execute("SELECT id, username, password FROM users WHERE username=? AND password=?", (username, hashed_password))
     user = cursor.fetchone()
     connection.close()
-    return user  # Gibt den ganzen User-Record zurück oder None
+    return user
 
-def login_required(f):
+def login_required(f):  # Decorator: Login erforderlich
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args, **kwargs):  # Überprüfe Session-Login
         if not session.get("logged_in"):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated_function
 
 @app.route('/')
-def home():
+def home():  # Root weiterleiten
     return redirect("/login")
 
 @app.route('/login', methods=['GET', 'POST'])
-def login():
+def login():  # Login-Seite verarbeiten
     error = None
     message = request.args.get('message')
     
@@ -480,7 +475,7 @@ def login():
             if user:
                 session["logged_in"] = True
                 session["username"] = username
-                session["user_id"] = user[0]  # user[0] ist die ID
+                session["user_id"] = user[0]
                 print(f"🔐 Benutzer {username} angemeldet (ID: {user[0]})")
                 return redirect("/dashboard")
             else:
@@ -489,26 +484,29 @@ def login():
     return render_template('login.html', error=error, message=message)
 
 @app.route('/logout')
-def logout():
+def logout():  # Logout: Session löschen
     session.clear()
     return redirect("/login")
 
 @app.route('/dashboard')
+
 @login_required
-def dashboard():
+def dashboard():  # Dashboard anzeigen
     username = session.get('username', 'Guest')
     user_id = session.get('user_id')
     
-    # Lade Dashboard-Einstellungen für den Benutzer
+    
     global face_monitoring
     if user_id:
         face_monitoring.load_settings_from_db(user_id)
     
-    # Kameras aus der Datenbank laden
+    
+    
     connection = get_db_connection()
     cursor = connection.cursor()
     cursor.execute("SELECT id, name, ip_address, resolution FROM camera_settings ORDER BY id")
     cameras = cursor.fetchall()
+    
     
     # Lade aktuelle Gesichtserkennungen (letzte 10)
     cursor.execute("""
@@ -550,7 +548,7 @@ def dashboard():
 
 @app.route('/recordings')
 @login_required
-def recordings():
+def recordings():  # Aufnahmen anzeigen
     username = session.get('username', 'Guest')
     
     # Captures aus der Datenbank laden
@@ -576,7 +574,7 @@ def recordings():
 
 @app.route('/api/captures/<int:capture_id>', methods=['DELETE'])
 @login_required
-def delete_capture(capture_id):
+def delete_capture(capture_id):  # Aufnahme löschen
     """API Endpoint um eine Aufnahme zu löschen"""
     try:
         connection = get_db_connection()
@@ -589,56 +587,58 @@ def delete_capture(capture_id):
         if not capture:
             connection.close()
             return jsonify({'success': False, 'error': 'Aufnahme nicht gefunden'})
-        
+
         # Datei löschen
         file_path = capture[0]
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        full_path = os.path.join(base_dir, file_path)
-        
+        full_path = os.path.join(get_base_dir(), file_path)
+
         if os.path.exists(full_path):
             os.remove(full_path)
-        
+
         # Eintrag aus der Datenbank löschen
         cursor.execute("DELETE FROM captures WHERE id = ?", (capture_id,))
         connection.commit()
         connection.close()
-        
+
         return jsonify({'success': True, 'message': 'Aufnahme erfolgreich gelöscht'})
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Fehler beim Löschen: {str(e)}'})
 
+# -----------------------------
+# Camera routes & helpers
+# -----------------------------
+
 @app.route('/faces')
 @login_required
-def faces():
+def faces():  # Bekannte Gesichter anzeigen
     username = session.get('username', 'Guest')
     message = request.args.get('message')
     message_type = request.args.get('message_type', 'success')
     
     # Bekannte Gesichter aus JSON-Datei laden
     faces = []
-    faces_json_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Gesichtserkennung', 'bekannte_gesichter.json')
-    
+    faces_json_path = get_faces_json_path()
+
     try:
         if os.path.exists(faces_json_path):
             with open(faces_json_path, 'r', encoding='utf-8') as f:
                 known_faces_data = json.load(f)
-            
+
             # Faces-Ordner erstellen falls nicht vorhanden
-            static_faces_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'faces')
-            os.makedirs(static_faces_dir, exist_ok=True)
+            static_faces_dir = get_static_faces_dir()
             
-            gesicht_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Gesichtserkennung')
-            
+            gesicht_dir = os.path.dirname(faces_json_path)
+
             # Gesichter für Template aufbereiten
             for i, face_data in enumerate(known_faces_data):
                 src_path = os.path.join(gesicht_dir, face_data['Image'])
                 dst_path = os.path.join(static_faces_dir, face_data['Image'])
-                
+
                 # Bilder zu static/faces kopieren für Web-Zugriff
                 if os.path.exists(src_path) and not os.path.exists(dst_path):
                     shutil.copy2(src_path, dst_path)
-                
+
                 # Face-Objekt für Template erstellen
                 face = {
                     'id': i + 1,
@@ -647,7 +647,7 @@ def faces():
                     'added_date': datetime.datetime.now().strftime('%d.%m.%Y')
                 }
                 faces.append(face)
-                
+
     except Exception as e:
         print(f"Fehler beim Laden der Gesichter: {e}")
     
@@ -669,9 +669,13 @@ def faces():
                          message=message, 
                          message_type=message_type)
 
+# -----------------------------
+# Settings & Camera management
+# -----------------------------
+
 @app.route('/settings')
 @login_required
-def settings():
+def settings():  # Einstellungen anzeigen
     username = session.get('username', 'Guest')
     
     # Kameras aus der Datenbank laden
@@ -696,7 +700,7 @@ def settings():
 
 @app.route('/api/cameras', methods=['GET'])
 @login_required
-def get_cameras():
+def get_cameras():  # Alle Kameras als JSON
     """API Endpoint um alle Kameras zu laden"""
     connection = get_db_connection()
     cursor = connection.cursor()
@@ -718,7 +722,7 @@ def get_cameras():
 
 @app.route('/api/cameras/<int:camera_id>', methods=['PUT'])
 @login_required
-def update_camera(camera_id):
+def update_camera(camera_id):  # Kamera aktualisieren
     """API Endpoint um eine Kamera zu aktualisieren"""
     data = request.get_json()
     
@@ -739,7 +743,7 @@ def update_camera(camera_id):
 
 @app.route('/api/cameras/<int:camera_id>', methods=['DELETE'])
 @login_required
-def delete_camera(camera_id):
+def delete_camera(camera_id):  # Kamera löschen
     """API Endpoint um eine Kamera zu löschen"""
     connection = get_db_connection()
     cursor = connection.cursor()
@@ -754,7 +758,7 @@ def delete_camera(camera_id):
 
 @app.route('/api/cameras', methods=['POST'])
 @login_required
-def create_camera():
+def create_camera():  # Neue Kamera anlegen
     """API Endpoint um eine neue Kamera zu erstellen"""
     data = request.get_json()
     
@@ -775,7 +779,7 @@ def create_camera():
 
 @app.route('/api/cameras/<int:camera_id>/status')
 @login_required
-def check_camera_status(camera_id):
+def check_camera_status(camera_id):  # Kamera-Status prüfen
     """API Endpoint um den Status einer Kamera zu überprüfen"""
     try:
         connection = get_db_connection()
@@ -807,7 +811,7 @@ def check_camera_status(camera_id):
 
 @app.route('/logs')
 @login_required
-def logs():
+def logs():  # Logs-Seite anzeigen
     """Log-Seite für Gesichtserkennungen"""
     try:
         # Hole Parameter für Paginierung
@@ -914,7 +918,7 @@ def logs():
 
 @app.route('/api/logs/<int:detection_id>', methods=['DELETE'])
 @login_required
-def delete_detection(detection_id):
+def delete_detection(detection_id):  # Einzelne Erkennung löschen
     """API zum Löschen einer einzelnen Erkennung"""
     try:
         connection = get_db_connection()
@@ -938,7 +942,7 @@ def delete_detection(detection_id):
 
 @app.route('/api/logs/bulk-delete', methods=['POST'])
 @login_required
-def bulk_delete_detections():
+def bulk_delete_detections():  # Mehrere Erkennungen löschen
     """API zum Löschen mehrerer Erkennungen"""
     try:
         data = request.get_json()
@@ -969,7 +973,7 @@ def bulk_delete_detections():
 
 @app.route('/api/logs/clear-all', methods=['POST'])
 @login_required
-def clear_all_detections():
+def clear_all_detections():  # Alle Erkennungen löschen
     """API zum Löschen aller Erkennungen (mit Bestätigung)"""
     try:
         data = request.get_json()
@@ -1000,7 +1004,7 @@ def clear_all_detections():
 
 @app.route('/account')
 @login_required
-def account():
+def account():  # Account-Seite anzeigen
     username = session.get('username', 'Guest')
     error = request.args.get('error')
     success = request.args.get('success')
@@ -1008,7 +1012,7 @@ def account():
 
 @app.route('/capture_photo', methods=['POST'])
 @login_required
-def capture_photo():
+def capture_photo():  # Foto von Kamera aufnehmen
     try:
         data = request.get_json()
         camera_id = data.get('camera_id')
@@ -1073,7 +1077,7 @@ def capture_photo():
 
 @app.route('/change_password', methods=['POST'])
 @login_required
-def change_password():
+def change_password():  # Passwort ändern
     try:
         old_password = request.form.get('old_password')
         new_password = request.form.get('new_password')
@@ -1108,7 +1112,7 @@ def change_password():
 
 @app.route('/delete_account', methods=['POST'])
 @login_required
-def delete_account():
+def delete_account():  # Account löschen
     try:
         password = request.form.get('password')
         username = session.get('username')
@@ -1137,7 +1141,7 @@ def delete_account():
 
 @app.route('/add_face', methods=['POST'])
 @login_required
-def add_face():
+def add_face():  # Neues Gesicht hinzufügen
     try:
         name = request.form.get('name', '').strip()
         
@@ -1145,11 +1149,7 @@ def add_face():
             return redirect(url_for('faces', message='Name ist erforderlich', message_type='error'))
         
         # Gesichter JSON-Datei Pfad
-        faces_json_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-            'Gesichtserkennung', 
-            'bekannte_gesichter.json'
-        )
+        faces_json_path = get_faces_json_path()
         gesicht_dir = os.path.dirname(faces_json_path)
         
         # Bestehende Gesichter laden
@@ -1214,7 +1214,7 @@ def add_face():
             
             try:
                 # Foto von Kamera aufnehmen
-                response = requests.get(f"http://{camera_ip}/?action=snapshot", timeout=10)
+                response = fetch_camera_snapshot(camera_ip, timeout=10)
                 response.raise_for_status()
                 
                 # Bild speichern
@@ -1245,8 +1245,7 @@ def add_face():
             json.dump(known_faces, f, ensure_ascii=False, indent=2)
         
         # Bild zu static/faces kopieren
-        static_faces_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'faces')
-        os.makedirs(static_faces_dir, exist_ok=True)
+        static_faces_dir = get_static_faces_dir()
         src_path = os.path.join(gesicht_dir, image_filename)
         dst_path = os.path.join(static_faces_dir, image_filename)
         
@@ -1264,14 +1263,10 @@ def add_face():
 
 @app.route('/delete_face/<int:face_id>', methods=['POST'])
 @login_required  
-def delete_face(face_id):
+def delete_face(face_id):  # Gesicht löschen
     try:
         # Gesichter JSON-Datei laden
-        faces_json_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-            'Gesichtserkennung', 
-            'bekannte_gesichter.json'
-        )
+        faces_json_path = get_faces_json_path()
         gesicht_dir = os.path.dirname(faces_json_path)
         
         if not os.path.exists(faces_json_path):
@@ -1296,7 +1291,7 @@ def delete_face(face_id):
             # Bilddateien löschen
             image_paths = [
                 os.path.join(gesicht_dir, image_filename),
-                os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'faces', image_filename)
+                os.path.join(get_static_faces_dir(), image_filename)
             ]
             
             for path in image_paths:
@@ -1316,7 +1311,7 @@ def delete_face(face_id):
 
 @app.route('/api/faces/<int:face_id>/update', methods=['POST'])
 @login_required  
-def update_face_name(face_id):
+def update_face_name(face_id):  # Aktualisiere Namen eines Gesichts
     """API-Route zum Aktualisieren des Namens eines Gesichts"""
     try:
         # Request-Daten holen
@@ -1327,11 +1322,7 @@ def update_face_name(face_id):
             return jsonify({'success': False, 'message': 'Name ist erforderlich'})
         
         # Gesichter JSON-Datei laden
-        faces_json_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-            'Gesichtserkennung', 
-            'bekannte_gesichter.json'
-        )
+        faces_json_path = get_faces_json_path()
         
         if not os.path.exists(faces_json_path):
             return jsonify({'success': False, 'message': 'Keine Gesichter gefunden'})
@@ -1367,7 +1358,7 @@ def update_face_name(face_id):
 
 @app.route('/api/camera/<int:camera_id>/recognize_face', methods=['POST'])
 @login_required
-def recognize_face_from_camera(camera_id):
+def recognize_face_from_camera(camera_id):  # Erkenne Gesichter von Kamera
     """Nimmt ein Foto von der Kamera auf und führt Gesichtserkennung durch"""
     try:
         # Kamera-Details aus der Datenbank holen
@@ -1404,7 +1395,7 @@ def recognize_face_from_camera(camera_id):
 
 @app.route('/api/camera/<int:camera_id>/preview', methods=['GET'])
 @login_required
-def get_camera_preview(camera_id):
+def get_camera_preview(camera_id):  # Liefere Vorschaubild der Kamera
     """Liefert ein Vorschaubild von der angegebenen Kamera"""
     try:
         # Kamera-Details aus der Datenbank holen
@@ -1445,7 +1436,7 @@ def get_camera_preview(camera_id):
 
 @app.route('/api/camera/<int:camera_id>/capture', methods=['POST'])
 @login_required
-def capture_camera_photo(camera_id):
+def capture_camera_photo(camera_id):  # Foto aufnehmen und zurückgeben
     """Nimmt ein Foto von der Kamera auf und gibt die Bilddaten zurück"""
     try:
         # Kamera-Details aus der Datenbank holen
@@ -1488,7 +1479,7 @@ def capture_camera_photo(camera_id):
 
 @app.route('/api/face_detections/recent', methods=['GET'])
 @login_required
-def get_recent_face_detections():
+def get_recent_face_detections():  # Aktuelle Erkennungen liefern
     """API für aktuelle Gesichtserkennungen"""
     try:
         limit = request.args.get('limit', 10, type=int)
@@ -1512,7 +1503,7 @@ def get_recent_face_detections():
 
 @app.route('/api/face_detections/statistics', methods=['GET'])
 @login_required 
-def get_face_detection_statistics():
+def get_face_detection_statistics():  # Statistiken zur Gesichtserkennung
     """API für Gesichtserkennungs-Statistiken"""
     try:
         connection = get_db_connection()
@@ -1566,7 +1557,7 @@ def get_face_detection_statistics():
 
 @app.route('/api/face_monitoring/start_continuous', methods=['POST'])
 @login_required
-def start_continuous_monitoring():
+def start_continuous_monitoring():  # Starte kontinuierliche Überwachung
     """Startet kontinuierliche Gesichtserkennung für alle Kameras"""
     try:
         # TODO: Implementiere kontinuierliche Überwachung
@@ -1582,7 +1573,7 @@ def start_continuous_monitoring():
 
 @app.route('/api/cameras/<int:camera_id>/status', methods=['GET'])
 @login_required
-def get_camera_status(camera_id):
+def get_camera_status(camera_id):  # Einzelne Kamera-Status prüfen
     """API Endpoint um den Status einer einzelnen Kamera zu überprüfen"""
     connection = get_db_connection()
     cursor = connection.cursor()
@@ -1607,7 +1598,7 @@ def get_camera_status(camera_id):
 
 @app.route('/api/cameras/status', methods=['GET'])
 @login_required
-def get_all_cameras_status():
+def get_all_cameras_status():  # Alle Kamera-Status prüfen
     """API Endpoint um den Status aller Kameras zu überprüfen"""
     connection = get_db_connection()
     cursor = connection.cursor()
@@ -1633,7 +1624,7 @@ def get_all_cameras_status():
 
 @app.route('/api/face_monitoring/status', methods=['GET'])
 @login_required
-def face_monitoring_status():
+def face_monitoring_status():  # Face-Monitoring-Status liefern
     """API Endpoint für Face Monitoring Status"""
     global face_recognition, face_monitoring
     
@@ -1673,7 +1664,7 @@ def face_monitoring_status():
 
 @app.route('/api/face_monitoring/start', methods=['POST'])
 @login_required
-def start_face_monitoring():
+def start_face_monitoring():  # Starte Face Monitoring
     """Startet kontinuierliches Face Monitoring"""
     global face_monitoring
     
@@ -1700,7 +1691,7 @@ def start_face_monitoring():
 
 @app.route('/api/face_monitoring/stop', methods=['POST'])
 @login_required
-def stop_face_monitoring():
+def stop_face_monitoring():  # Stoppe Face Monitoring
     """Stoppt kontinuierliches Face Monitoring"""
     global face_monitoring
     
@@ -1722,7 +1713,7 @@ def stop_face_monitoring():
 
 @app.route('/api/face_monitoring/interval', methods=['POST'])
 @login_required
-def set_monitoring_interval():
+def set_monitoring_interval():  # Intervall einstellen
     """Ändert das Monitoring-Intervall"""
     global face_monitoring
     
@@ -1750,7 +1741,7 @@ def set_monitoring_interval():
 # Dashboard Settings API
 @app.route('/api/dashboard/settings', methods=['GET'])
 @login_required
-def get_dashboard_settings():
+def get_dashboard_settings():  # Lade Dashboard-Einstellungen
     """Lädt Dashboard-Einstellungen für den aktuellen Benutzer"""
     try:
         user_id = session.get('user_id')
@@ -1808,7 +1799,7 @@ def get_dashboard_settings():
 
 @app.route('/api/dashboard/settings', methods=['POST'])
 @login_required
-def save_dashboard_settings():
+def save_dashboard_settings():  # Einstellungen speichern
     """Speichert Dashboard-Einstellungen für den aktuellen Benutzer"""
     try:
         user_id = session.get('user_id')
@@ -1847,7 +1838,7 @@ def save_dashboard_settings():
 
 @app.route('/api/dashboard/setting/<setting_key>', methods=['POST'])
 @login_required
-def save_single_dashboard_setting(setting_key):
+def save_single_dashboard_setting(setting_key):  # Einzelne Einstellung speichern
     """Speichert eine einzelne Dashboard-Einstellung"""
     try:
         user_id = session.get('user_id')

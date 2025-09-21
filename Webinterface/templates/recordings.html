@@ -71,7 +71,6 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Seite neu laden um die gelöschte Aufnahme zu entfernen
                         location.reload();
                     } else {
                         alert('Fehler beim Löschen: ' + data.error);

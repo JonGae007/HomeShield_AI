@@ -8,7 +8,6 @@
     <title>Dashboard</title>
 </head>
 <script>
-  // --- Daten aus der Datenbank laden ---
   let cameras = {{ cameras|tojson }};
 
   function createEl(tag, attrs={}, ...children){
@@ -51,7 +50,6 @@
       const body = createEl('div', { class: 'acc-body' });
       const form = createEl('form', { onsubmit: (e)=>{ e.preventDefault(); handleSave(cam.id, form); } });
 
-      // Row 1: Auflösung + Name + IP
       const row1 = createEl('div', { class: 'form-row-triple' });
       const resolutionInput = createEl('input', { 
         type: 'text', 
@@ -121,7 +119,7 @@
       const result = await response.json();
       if (result.success) {
         showToast('Gespeichert', 'success');
-        await loadCameras(); // Neu laden
+        await loadCameras();
       } else {
         showToast('Fehler beim Speichern', 'error');
       }
@@ -142,7 +140,7 @@
       const result = await response.json();
       if (result.success) {
         showToast('Kamera gelöscht', 'success');
-        await loadCameras(); // Neu laden
+        await loadCameras(); 
       } else {
         showToast('Fehler beim Löschen', 'error');
       }
@@ -171,7 +169,7 @@
       const result = await response.json();
       if (result.success) {
         showToast('Kamera hinzugefügt', 'success');
-        await loadCameras(); // Neu laden
+        await loadCameras(); 
       } else {
         showToast('Fehler beim Hinzufügen', 'error');
       }

@@ -35,16 +35,13 @@
             <p class="faces-subtitle">Verwalten Sie bekannte Gesichter für die automatische Erkennung</p>
         </div>
 
-        <!-- Alert Messages -->
         {% if message %}
         <div class="alert {% if message_type == 'error' %}alert-error{% else %}alert-success{% endif %}">
             <span>{{ message }}</span>
         </div>
         {% endif %}
 
-        <!-- Faces Grid -->
         <div class="faces-grid" id="facesGrid">
-            <!-- Add New Face Card -->
             <div class="face-card add-face-card" onclick="openAddFaceModal()">
                 <div class="add-face-content">
                     <div class="add-face-icon">+</div>
@@ -52,7 +49,6 @@
                 </div>
             </div>
 
-            <!-- Existing Faces Cards -->
             {% for face in faces %}
             <div class="face-card">
                 <div class="face-image-container">
@@ -75,7 +71,6 @@
         </div>
     </div>
 
-    <!-- Add Face Modal -->
     <div id="addFaceModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -100,7 +95,6 @@
                         <input type="text" id="faceName" name="name" required placeholder="Name eingeben...">
                     </div>
 
-                    <!-- Upload Method -->
                     <div id="uploadMethod" class="method-content active">
                         <div class="form-group">
                             <label for="faceImage">Foto auswählen:</label>
@@ -115,7 +109,6 @@
                         </div>
                     </div>
 
-                    <!-- Camera Method -->
                     <div id="cameraMethod" class="method-content">
                         <div class="camera-container">
                             <div class="camera-selector">

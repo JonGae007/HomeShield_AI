@@ -31,8 +31,6 @@
     </a>
     <div class="content">
         <h1>Accountverwaltung</h1>
-        
-        <!-- Fehlermeldungen und Erfolgsmeldungen -->
         {% if error %}
         <div class="alert alert-error">
             <span class="alert-icon">⚠️</span>
@@ -48,7 +46,6 @@
         {% endif %}
         
         <div class="account-container">
-            <!-- Benutzerprofil Sektion -->
             <div class="account-card">
                 <h2 class="section-title">
                     <img src="/static/icons/user.png" alt="User Icon" class="section-icon">
@@ -62,7 +59,6 @@
                 </div>
             </div>
 
-            <!-- Passwort ändern Sektion -->
             <div class="account-card">
                 <h2 class="section-title">
                     <img src="/static/icons/settings.png" alt="Settings Icon" class="section-icon">
@@ -88,7 +84,6 @@
                 </form>
             </div>
 
-            <!-- Account Aktionen Sektion -->
             <div class="account-card">
                 <h2 class="section-title">
                     <img src="/static/icons/settings.png" alt="Actions Icon" class="section-icon">
@@ -106,7 +101,6 @@
             </div>
         </div>
 
-        <!-- Delete Account Modal -->
         <div id="deleteModal" class="modal">
             <div class="modal-content">
                 <div class="modal-header">
@@ -137,7 +131,6 @@
                 document.getElementById('deleteModal').style.display = 'none';
             }
 
-            // Close modal when clicking outside of it
             window.onclick = function(event) {
                 const modal = document.getElementById('deleteModal');
                 if (event.target == modal) {

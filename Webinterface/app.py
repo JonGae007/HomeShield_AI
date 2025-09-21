@@ -80,7 +80,7 @@ class FastFaceRecognition:
             except Exception as e:
                 print(f"❌ Fehler beim Laden der Gesichter: {e}")
     
-    def detect_faces_in_image(self, image_data):
+    def detect_faces_in_image(self, image_data, camera_id=None):
         """
         Erkennt alle Gesichter in einem Bild
         Rückgabe: {'faces': [{'name': str|'Unbekannt', 'confidence': float, 'location': tuple}]}
@@ -135,7 +135,7 @@ class FastFaceRecognition:
                     })
                 
                 # Log the detection
-                self._log_detection(detected_faces)
+                self._log_detection(detected_faces, camera_id=camera_id)
                 
                 return {'faces': detected_faces, 'total_faces': len(detected_faces)}
                 
@@ -143,7 +143,7 @@ class FastFaceRecognition:
                 print(f"❌ Fehler bei Gesichtserkennung: {e}")
                 return {'faces': [], 'total_faces': 0}
     
-    def _log_detection(self, detected_faces):
+    def _log_detection(self, detected_faces, camera_id=None):
         """Loggt Gesichtserkennungen in die Datenbank"""
         timestamp = datetime.datetime.now()
         
@@ -162,9 +162,9 @@ class FastFaceRecognition:
                 connection = get_db_connection()
                 cursor = connection.cursor()
                 cursor.execute("""
-                    INSERT INTO face_detections (name, confidence, is_known, detected_at)
-                    VALUES (?, ?, ?, ?)
-                """, (face['name'], face['confidence'], face['is_known'], timestamp))
+                    INSERT INTO face_detections (name, confidence, is_known, detected_at, camera_id)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (face['name'], face['confidence'], face['is_known'], timestamp, camera_id))
                 connection.commit()
                 connection.close()
             except Exception as e:
@@ -855,12 +855,20 @@ def logs():
         # Berechne Offset
         offset = (page - 1) * per_page
         
-        # Hole Erkennungen mit Paginierung
+        # Hole Erkennungen mit Paginierung und Kamera-Namen
         query = f"""
-            SELECT id, name, confidence, is_known, detected_at, camera_id
-            FROM face_detections
-            {where_clause}
-            ORDER BY detected_at DESC
+            SELECT 
+                fd.id, 
+                fd.name, 
+                fd.confidence, 
+                fd.is_known, 
+                fd.detected_at, 
+                fd.camera_id,
+                cs.name as camera_name
+            FROM face_detections fd
+            LEFT JOIN camera_settings cs ON fd.camera_id = cs.id
+            {where_clause.replace('WHERE', 'WHERE') if where_clause else ''}
+            ORDER BY fd.detected_at DESC
             LIMIT ? OFFSET ?
         """
         cursor.execute(query, params + [per_page, offset])
@@ -876,6 +884,7 @@ def logs():
                 'is_known': detection[3],
                 'detected_at': detection[4],
                 'camera_id': detection[5],
+                'camera_name': detection[6] if detection[6] else 'Unbekannte Kamera',
                 'time_ago': get_time_ago(detection[4])
             })
         
@@ -1169,6 +1178,25 @@ def add_face():
                 file.save(image_path)
         
         # Kamerafoto verarbeiten
+        elif 'camera_photo_data' in request.form and request.form.get('camera_photo_data'):
+            camera_photo_data = request.form.get('camera_photo_data')
+            
+            try:
+                # Base64-Bilddaten dekodieren
+                import base64
+                image_data = base64.b64decode(camera_photo_data)
+                
+                # Bild speichern
+                image_filename = f"{uuid.uuid4()}.jpg"
+                image_path = os.path.join(gesicht_dir, image_filename)
+                
+                with open(image_path, 'wb') as f:
+                    f.write(image_data)
+                    
+            except Exception as e:
+                return redirect(url_for('faces', message=f'Fehler beim Verarbeiten des Kamerafotos: {str(e)}', message_type='error'))
+        
+        # Fallback: Direkte Kameraaufnahme
         elif 'camera_id' in request.form and request.form.get('camera_id'):
             camera_id = request.form.get('camera_id')
             
@@ -1286,6 +1314,57 @@ def delete_face(face_id):
         print(f"Fehler beim Löschen des Gesichts: {e}")
         return jsonify({'success': False, 'message': f'Fehler beim Löschen: {str(e)}'})
 
+@app.route('/api/faces/<int:face_id>/update', methods=['POST'])
+@login_required  
+def update_face_name(face_id):
+    """API-Route zum Aktualisieren des Namens eines Gesichts"""
+    try:
+        # Request-Daten holen
+        data = request.get_json()
+        new_name = data.get('name', '').strip()
+        
+        if not new_name:
+            return jsonify({'success': False, 'message': 'Name ist erforderlich'})
+        
+        # Gesichter JSON-Datei laden
+        faces_json_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+            'Gesichtserkennung', 
+            'bekannte_gesichter.json'
+        )
+        
+        if not os.path.exists(faces_json_path):
+            return jsonify({'success': False, 'message': 'Keine Gesichter gefunden'})
+        
+        with open(faces_json_path, 'r', encoding='utf-8') as f:
+            known_faces = json.load(f)
+        
+        # Prüfen ob die face_id gültig ist (face_id ist 1-basiert)
+        if not (1 <= face_id <= len(known_faces)):
+            return jsonify({'success': False, 'message': 'Ungültige Gesicht-ID'})
+        
+        # Prüfen ob Name bereits existiert (außer bei dem aktuellen Gesicht)
+        for i, face in enumerate(known_faces):
+            if i != (face_id - 1) and face['Name'].lower() == new_name.lower():
+                return jsonify({'success': False, 'message': f'Ein Gesicht mit dem Namen "{new_name}" existiert bereits'})
+        
+        # Namen aktualisieren
+        old_name = known_faces[face_id - 1]['Name']
+        known_faces[face_id - 1]['Name'] = new_name
+        
+        # JSON-Datei speichern
+        with open(faces_json_path, 'w', encoding='utf-8') as f:
+            json.dump(known_faces, f, ensure_ascii=False, indent=2)
+        
+        # FaceRecognition neu laden
+        face_recognition.reload_known_faces()
+        
+        return jsonify({'success': True, 'message': f'Name erfolgreich von "{old_name}" zu "{new_name}" geändert'})
+        
+    except Exception as e:
+        print(f"Fehler beim Aktualisieren des Gesichts: {e}")
+        return jsonify({'success': False, 'message': f'Fehler beim Aktualisieren: {str(e)}'})
+
 @app.route('/api/camera/<int:camera_id>/recognize_face', methods=['POST'])
 @login_required
 def recognize_face_from_camera(camera_id):
@@ -1311,7 +1390,7 @@ def recognize_face_from_camera(camera_id):
             return jsonify({'success': False, 'error': 'Konnte kein Foto von der Kamera aufnehmen'})
         
         # Gesichtserkennung durchführen
-        result = face_recognition.detect_faces_in_image(response.content)
+        result = face_recognition.detect_faces_in_image(response.content, camera_id=camera_id)
         
         return jsonify({
             'success': True,
@@ -1322,6 +1401,90 @@ def recognize_face_from_camera(camera_id):
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Fehler bei der Gesichtserkennung: {str(e)}'})
+
+@app.route('/api/camera/<int:camera_id>/preview', methods=['GET'])
+@login_required
+def get_camera_preview(camera_id):
+    """Liefert ein Vorschaubild von der angegebenen Kamera"""
+    try:
+        # Kamera-Details aus der Datenbank holen
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT name, ip_address FROM camera_settings WHERE id=?", (camera_id,))
+        camera_data = cursor.fetchone()
+        connection.close()
+        
+        if not camera_data:
+            return jsonify({'error': 'Kamera nicht gefunden'}), 404
+        
+        camera_name, ip_address = camera_data
+        
+        # Snapshot von der Kamera anfordern
+        image_url = f"http://{ip_address}/?action=snapshot"
+        response = requests.get(image_url, timeout=10)
+        
+        if response.status_code != 200:
+            # Fallback: Platzhalter-Bild zurückgeben
+            placeholder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'icons', 'camera.png')
+            if os.path.exists(placeholder_path):
+                with open(placeholder_path, 'rb') as f:
+                    return f.read(), 200, {'Content-Type': 'image/png'}
+            else:
+                return jsonify({'error': 'Kamera nicht erreichbar'}), 500
+        
+        # Bild direkt zurückgeben
+        return response.content, 200, {'Content-Type': 'image/jpeg'}
+        
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Kamera-Timeout'}), 408
+    except requests.exceptions.ConnectionError:
+        return jsonify({'error': 'Verbindung zur Kamera fehlgeschlagen'}), 503
+    except Exception as e:
+        print(f"Fehler bei Kamera-Vorschau: {e}")
+        return jsonify({'error': f'Fehler beim Laden der Vorschau: {str(e)}'}), 500
+
+@app.route('/api/camera/<int:camera_id>/capture', methods=['POST'])
+@login_required
+def capture_camera_photo(camera_id):
+    """Nimmt ein Foto von der Kamera auf und gibt die Bilddaten zurück"""
+    try:
+        # Kamera-Details aus der Datenbank holen
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT name, ip_address FROM camera_settings WHERE id=?", (camera_id,))
+        camera_data = cursor.fetchone()
+        connection.close()
+        
+        if not camera_data:
+            return jsonify({'success': False, 'error': 'Kamera nicht gefunden'})
+        
+        camera_name, ip_address = camera_data
+        
+        # Foto von der Kamera aufnehmen
+        image_url = f"http://{ip_address}/?action=snapshot"
+        response = requests.get(image_url, timeout=10)
+        
+        if response.status_code != 200:
+            return jsonify({'success': False, 'error': 'Konnte kein Foto aufnehmen'})
+        
+        # Temporäre Datei erstellen für das Foto
+        import base64
+        image_data = base64.b64encode(response.content).decode('utf-8')
+        
+        return jsonify({
+            'success': True,
+            'image_data': image_data,
+            'camera_name': camera_name,
+            'timestamp': datetime.datetime.now().isoformat()
+        })
+        
+    except requests.exceptions.Timeout:
+        return jsonify({'success': False, 'error': 'Kamera-Timeout'})
+    except requests.exceptions.ConnectionError:
+        return jsonify({'success': False, 'error': 'Verbindung zur Kamera fehlgeschlagen'})
+    except Exception as e:
+        print(f"Fehler beim Foto aufnehmen: {e}")
+        return jsonify({'success': False, 'error': f'Fehler beim Aufnehmen: {str(e)}'})
 
 @app.route('/api/face_detections/recent', methods=['GET'])
 @login_required

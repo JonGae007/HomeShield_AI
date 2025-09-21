@@ -183,25 +183,19 @@ function capturePhoto() {
         return;
     }
     
-    // Capture photo (in real implementation would call camera API)
+    // Foto von der Kamera aufnehmen
     showNotification('Foto wird aufgenommen...', 'info');
     
-    setTimeout(() => {
-        // Simulate photo capture
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        canvas.width = preview.naturalWidth || 640;
-        canvas.height = preview.naturalHeight || 480;
-        
-        ctx.drawImage(preview, 0, 0);
-        
-        // Convert to blob and create hidden input
-        canvas.toBlob(function(blob) {
-            const formData = new FormData();
-            formData.append('captured_photo', blob, 'capture.jpg');
-            
-            // Add hidden input with camera data
+    fetch(`/api/camera/${cameraSelect.value}/capture`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Verstecktes Input-Feld für die Bilddaten erstellen/aktualisieren
             let hiddenInput = document.getElementById('cameraPhotoData');
             if (!hiddenInput) {
                 hiddenInput = document.createElement('input');
@@ -211,13 +205,46 @@ function capturePhoto() {
                 document.getElementById('addFaceForm').appendChild(hiddenInput);
             }
             
-            // Store blob URL for form submission
-            const blobUrl = URL.createObjectURL(blob);
-            hiddenInput.value = blobUrl;
+            // Base64-Bilddaten speichern
+            hiddenInput.value = data.image_data;
+            
+            // Kamera-ID für das Backend speichern
+            let cameraIdInput = document.getElementById('cameraIdInput');
+            if (!cameraIdInput) {
+                cameraIdInput = document.createElement('input');
+                cameraIdInput.type = 'hidden';
+                cameraIdInput.id = 'cameraIdInput';
+                cameraIdInput.name = 'camera_id';
+                document.getElementById('addFaceForm').appendChild(cameraIdInput);
+            }
+            cameraIdInput.value = cameraSelect.value;
             
             showNotification('Foto erfolgreich aufgenommen!', 'success');
-        }, 'image/jpeg');
-    }, 1000);
+            
+            // Optionale Vorschau des aufgenommenen Fotos
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            img.onload = function() {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                // Vorschau aktualisieren
+                preview.src = canvas.toDataURL('image/jpeg');
+            };
+            
+            img.src = 'data:image/jpeg;base64,' + data.image_data;
+            
+        } else {
+            showNotification(data.error || 'Fehler beim Aufnehmen des Fotos', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fehler beim Foto aufnehmen:', error);
+        showNotification('Fehler beim Aufnehmen des Fotos', 'error');
+    });
 }
 
 // Face Management Functions
@@ -337,9 +364,17 @@ document.addEventListener('submit', function(event) {
             }
         } else if (currentMethod === 'camera') {
             const cameraSelect = form.querySelector('#cameraSelect');
+            const cameraPhotoData = form.querySelector('#cameraPhotoData');
+            
             if (!cameraSelect.value) {
                 event.preventDefault();
                 showNotification('Bitte wählen Sie eine Kamera aus', 'error');
+                return false;
+            }
+            
+            if (!cameraPhotoData || !cameraPhotoData.value) {
+                event.preventDefault();
+                showNotification('Bitte nehmen Sie zuerst ein Foto auf', 'error');
                 return false;
             }
         }

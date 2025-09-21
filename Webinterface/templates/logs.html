@@ -17,7 +17,7 @@
             <li><a href="/dashboard"><img src="/static/icons/dashboard.png" alt="Dashboard Icon"> Dashboard</a></li>
             <li><a href="/recordings"><img src="/static/icons/play.png" alt="Recordings Icon"> Aufzeichnungen</a></li>
             <li><a href="/faces"><img src="/static/icons/face.png" alt="Face Icon"> Gesichter</a></li>
-            <li><a href="/logs" class="active"><img src="/static/icons/logs.png" alt="Logs Icon"> Logs</a></li>
+            <li><a href="/logs" class="active"><img src="/static/icons/log.png" alt="Logs Icon"> Logs</a></li>
             <li><a href="/settings"><img src="/static/icons/settings.png" alt="Settings Icon"> Einstellungen</a></li>
         </ul>
         <footer>
@@ -31,7 +31,7 @@
 
     <div class="content">
         <header class="main-header">
-            <h1>📋 Erkennungs-Logs</h1>
+            <h1>Erkennungs-Logs</h1>
             <div class="header-actions">
                 <button id="refreshBtn" class="btn btn-secondary">🔄 Aktualisieren</button>
                 <button id="clearAllBtn" class="btn btn-danger">🗑️ Alle löschen</button>
@@ -164,7 +164,7 @@
                             </td>
                             <td>
                                 <span class="camera-badge">
-                                    📷 {% if detection.camera_id %}Kamera {{ detection.camera_id }}{% else %}Unbekannt{% endif %}
+                                    📷 {{ detection.camera_name }}
                                 </span>
                             </td>
                             <td>

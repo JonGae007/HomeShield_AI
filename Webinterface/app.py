@@ -21,38 +21,32 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILENAME = 'homeshieldAI.db'
 
-def get_base_dir():  # Basisverzeichnis zurückgeben
-    """Return absolute path of the webinterface directory (where app.py lives)."""
+def get_base_dir():  
+    
     return BASE_DIR
 
-def get_db_path():  # DB-Pfad zurückgeben
+def get_db_path():  
     """Return absolute path to the sqlite database file."""
     return os.path.join(get_base_dir(), DB_FILENAME)
 
-def get_faces_json_path():  # Pfad zur Gesichter-JSON
-    """Return absolute path to the known faces JSON (external folder)."""
+def get_faces_json_path():  
+    
     return os.path.join(os.path.dirname(get_base_dir()), 'Gesichtserkennung', 'bekannte_gesichter.json')
 
-def get_static_faces_dir():  # Static-Faces-Verzeichnis sicherstellen
-    """Return absolute path to the `static/faces` folder for web access."""
+def get_static_faces_dir(): 
+  
     path = os.path.join(get_base_dir(), 'static', 'faces')
     os.makedirs(path, exist_ok=True)
     return path
 
-def fetch_camera_snapshot(ip_address, timeout=5, user_agent='HomeShieldAI/1.0'):  # Kamera-Snapshot holen
-    """Fetch a snapshot from an IP camera URL. Returns requests.Response or raises."""
+def fetch_camera_snapshot(ip_address, timeout=5, user_agent='HomeShieldAI/1.0'):  
+ 
     url = f"http://{ip_address}/?action=snapshot"
     headers = {'User-Agent': user_agent}
     return requests.get(url, timeout=timeout, headers=headers)
 
 class FastFaceRecognition:
-    """
-    Schnelle Gesichtserkennung mit face-recognition library:
-    - Erkennt bekannte und unbekannte Gesichter
-    - Cached Encodings für Performance
-    - Thread-sicher
-    - Logging aller Erkennungen
-    """
+
     def __init__(self):  # Initialisiere Face-Recognizer
         self._lock = threading.RLock()
         self.known_faces = []
@@ -61,7 +55,7 @@ class FastFaceRecognition:
         self._load_known_faces()
     
     def _load_known_faces(self):  # Lade bekannte Gesichter
-        """Lädt bekannte Gesichter und erstellt Encodings"""
+      
         with self._lock:
             self.known_faces = []
 
@@ -100,11 +94,8 @@ class FastFaceRecognition:
             except Exception as e:
                 print(f"❌ Fehler beim Laden der Gesichter: {e}")
     
-    def detect_faces_in_image(self, image_data, camera_id=None):  # Erkenne Gesichter in Bild
-        """
-        Erkennt alle Gesichter in einem Bild
-        Rückgabe: {'faces': [{'name': str|'Unbekannt', 'confidence': float, 'location': tuple}]}
-        """
+    def detect_faces_in_image(self, image_data, camera_id=None):  
+        
         with self._lock:
             try:
                 if isinstance(image_data, bytes):
@@ -153,8 +144,8 @@ class FastFaceRecognition:
                 print(f"❌ Fehler bei Gesichtserkennung: {e}")
                 return {'faces': [], 'total_faces': 0}
     
-    def _log_detection(self, detected_faces, camera_id=None):  # Erkennung in DB loggen
-        """Loggt Gesichtserkennungen in die Datenbank"""
+    def _log_detection(self, detected_faces, camera_id=None):
+       
         timestamp = datetime.datetime.now()
 
         for face in detected_faces:
@@ -182,8 +173,8 @@ class FastFaceRecognition:
         if len(self.detection_log) > 100:
             self.detection_log = self.detection_log[-100:]
     
-    def get_recent_detections(self, limit=50):  # Letzte Erkennungen zurückgeben
-        """Gibt die letzten Erkennungen zurück"""
+    def get_recent_detections(self, limit=50):  
+    
         try:
             connection = get_db_connection()
             cursor = connection.cursor()
@@ -210,14 +201,12 @@ class FastFaceRecognition:
             print(f"❌ Fehler beim Laden der Erkennungen: {e}")
             return self.detection_log[-limit:] if self.detection_log else []
     
-    def reload_known_faces(self):  # Bekannte Gesichter neu laden
-        """Lädt bekannte Gesichter neu"""
+    def reload_known_faces(self):  
+      
         self._load_known_faces()
 
-class FaceMonitoringService:  # Hintergrund-Monitoring-Service
-    """Service für kontinuierliche Gesichtserkennung im Hintergrund"""
-
-    def __init__(self, face_recognizer, monitoring_interval=10):  # Initialisiere Monitoring-Service
+class FaceMonitoringService:  
+    def __init__(self, face_recognizer, monitoring_interval=10):
         self.face_recognizer = face_recognizer
         self.monitoring_interval = monitoring_interval
         self.is_running = False
@@ -227,8 +216,8 @@ class FaceMonitoringService:  # Hintergrund-Monitoring-Service
         self._lock = threading.RLock()
         self.auto_start_enabled = False
 
-    def load_settings_from_db(self, user_id):  # Lade Monitoring-Einstellungen
-        """Lädt Monitoring-Einstellungen aus der Datenbank für einen Benutzer"""
+    def load_settings_from_db(self, user_id): 
+       
         try:
             connection = get_db_connection()
             cursor = connection.cursor()
@@ -264,8 +253,7 @@ class FaceMonitoringService:  # Hintergrund-Monitoring-Service
         except Exception as e:
             print(f"❌ Fehler beim Laden der Monitoring-Einstellungen: {e}")
     
-    def save_settings_to_db(self, user_id):  # Speichere Monitoring-Einstellungen
-        """Speichert aktuelle Monitoring-Einstellungen in die Datenbank"""
+    def save_settings_to_db(self, user_id):  
         try:
             connection = get_db_connection()
             cursor = connection.cursor()
@@ -288,8 +276,7 @@ class FaceMonitoringService:  # Hintergrund-Monitoring-Service
         except Exception as e:
             print(f"❌ Fehler beim Speichern der Monitoring-Einstellungen: {e}")
         
-    def start_monitoring(self):  # Starte Monitoring-Thread
-        """Startet das kontinuierliche Monitoring"""
+    def start_monitoring(self): 
         with self._lock:
             if self.is_running:
                 print("⚠️ Monitoring läuft bereits")
@@ -300,8 +287,7 @@ class FaceMonitoringService:  # Hintergrund-Monitoring-Service
             self.monitoring_thread.start()
             print(f"✅ Face Monitoring gestartet (Intervall: {self.monitoring_interval}s)")
     
-    def stop_monitoring(self):  # Stoppe Monitoring-Thread
-        """Stoppt das kontinuierliche Monitoring"""
+    def stop_monitoring(self):  
         with self._lock:
             if not self.is_running:
                 return
@@ -311,14 +297,12 @@ class FaceMonitoringService:  # Hintergrund-Monitoring-Service
                 self.monitoring_thread.join(timeout=2)
             print("🛑 Face Monitoring gestoppt")
     
-    def set_interval(self, seconds):  # Setze Monitoring-Intervall
-        """Ändert das Monitoring-Intervall"""
+    def set_interval(self, seconds):  
         with self._lock:
             self.monitoring_interval = max(5, min(300, seconds))
             print(f"⚙️ Monitoring-Intervall auf {self.monitoring_interval}s gesetzt")
     
-    def get_status(self):  # Status des Monitorings zurückgeben
-        """Gibt aktuellen Status zurück"""
+    def get_status(self):  
         return {
             'is_running': self.is_running,
             'interval': self.monitoring_interval,
@@ -326,8 +310,7 @@ class FaceMonitoringService:  # Hintergrund-Monitoring-Service
             'active_cameras': len(self.active_cameras)
         }
     
-    def _get_active_cameras(self):  # Lade aktive Kameras
-        """Holt aktive Kameras aus der Datenbank"""
+    def _get_active_cameras(self): 
         try:
             connection = get_db_connection()
             cursor = connection.cursor()
@@ -354,8 +337,7 @@ class FaceMonitoringService:  # Hintergrund-Monitoring-Service
             print(f"❌ Fehler beim Laden der Kameras: {e}")
             return []
     
-    def _monitoring_loop(self):  # Hauptschleife des Monitorings
-        """Hauptschleife für kontinuierliches Monitoring"""
+    def _monitoring_loop(self):  
         print("🔄 Face Monitoring Loop gestartet")
 
         while self.is_running:
@@ -405,21 +387,20 @@ class FaceMonitoringService:  # Hintergrund-Monitoring-Service
 face_recognition = FastFaceRecognition()
 face_monitoring = FaceMonitoringService(face_recognition, monitoring_interval=15)
 
-def generate_daily_secret_key():  # Täglichen Secret-Key generieren
+def generate_daily_secret_key():  
     today = datetime.date.today().isoformat()
     random_bytes = os.urandom(16)
     return hashlib.sha256((today + str(random_bytes)).encode()).hexdigest()
 
 app.secret_key = generate_daily_secret_key()
 
-def get_db_connection():  # DB-Verbindung öffnen
+def get_db_connection():  
     db_path = get_db_path()
     connection = sqlite3.connect(db_path)
     connection.row_factory = sqlite3.Row
     return connection
 
-def get_time_ago(timestamp_str):  # Zeit seit Timestamp berechnen
-    """Berechnet die Zeit seit einem Timestamp"""
+def get_time_ago(timestamp_str):  
     try:
         timestamp = datetime.datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
         now = datetime.datetime.now()
@@ -438,7 +419,7 @@ def get_time_ago(timestamp_str):  # Zeit seit Timestamp berechnen
     except:
         return "unbekannt"
 
-def check_login(username, password):  # Prüfe Login-Daten
+def check_login(username, password): 
     connection = get_db_connection()
     cursor = connection.cursor()
     hashed_password = hashlib.sha256(password.encode()).hexdigest()
@@ -447,20 +428,20 @@ def check_login(username, password):  # Prüfe Login-Daten
     connection.close()
     return user
 
-def login_required(f):  # Decorator: Login erforderlich
+def login_required(f):  
     @wraps(f)
-    def decorated_function(*args, **kwargs):  # Überprüfe Session-Login
+    def decorated_function(*args, **kwargs):  
         if not session.get("logged_in"):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated_function
 
 @app.route('/')
-def home():  # Root weiterleiten
+def home():  
     return redirect("/login")
 
 @app.route('/login', methods=['GET', 'POST'])
-def login():  # Login-Seite verarbeiten
+def login():  
     error = None
     message = request.args.get('message')
     
@@ -484,14 +465,14 @@ def login():  # Login-Seite verarbeiten
     return render_template('login.html', error=error, message=message)
 
 @app.route('/logout')
-def logout():  # Logout: Session löschen
+def logout():  
     session.clear()
     return redirect("/login")
 
 @app.route('/dashboard')
 
 @login_required
-def dashboard():  # Dashboard anzeigen
+def dashboard():  
     username = session.get('username', 'Guest')
     user_id = session.get('user_id')
     
@@ -508,7 +489,7 @@ def dashboard():  # Dashboard anzeigen
     cameras = cursor.fetchall()
     
     
-    # Lade aktuelle Gesichtserkennungen (letzte 10)
+   
     cursor.execute("""
         SELECT name, confidence, is_known, detected_at 
         FROM face_detections 
@@ -527,7 +508,7 @@ def dashboard():  # Dashboard anzeigen
     
     connection.close()
     
-    # Umwandlung in Dictionary für bessere Template-Verwendung
+    
     camera_list = []
     for camera in cameras:
         stream_url = f"http://{camera[2]}/?action=stream" if camera[2] else "/static/pictures/static.png"
@@ -548,17 +529,16 @@ def dashboard():  # Dashboard anzeigen
 
 @app.route('/recordings')
 @login_required
-def recordings():  # Aufnahmen anzeigen
+def recordings():  
     username = session.get('username', 'Guest')
     
-    # Captures aus der Datenbank laden
+    
     connection = get_db_connection()
     cursor = connection.cursor()
     cursor.execute("SELECT id, pfad, created_at FROM captures ORDER BY created_at DESC")
     captures_data = cursor.fetchall()
     connection.close()
     
-    # Umwandlung in Dictionary für bessere Template-Verwendung
     captures = []
     for capture in captures_data:
         capture_dict = {
@@ -574,13 +554,12 @@ def recordings():  # Aufnahmen anzeigen
 
 @app.route('/api/captures/<int:capture_id>', methods=['DELETE'])
 @login_required
-def delete_capture(capture_id):  # Aufnahme löschen
-    """API Endpoint um eine Aufnahme zu löschen"""
+def delete_capture(capture_id):  
     try:
         connection = get_db_connection()
         cursor = connection.cursor()
         
-        # Pfad der Aufnahme aus der Datenbank holen
+        
         cursor.execute("SELECT pfad FROM captures WHERE id = ?", (capture_id,))
         capture = cursor.fetchone()
         
@@ -588,14 +567,14 @@ def delete_capture(capture_id):  # Aufnahme löschen
             connection.close()
             return jsonify({'success': False, 'error': 'Aufnahme nicht gefunden'})
 
-        # Datei löschen
+       
         file_path = capture[0]
         full_path = os.path.join(get_base_dir(), file_path)
 
         if os.path.exists(full_path):
             os.remove(full_path)
 
-        # Eintrag aus der Datenbank löschen
+       
         cursor.execute("DELETE FROM captures WHERE id = ?", (capture_id,))
         connection.commit()
         connection.close()
@@ -605,18 +584,16 @@ def delete_capture(capture_id):  # Aufnahme löschen
     except Exception as e:
         return jsonify({'success': False, 'error': f'Fehler beim Löschen: {str(e)}'})
 
-# -----------------------------
-# Camera routes & helpers
-# -----------------------------
+
 
 @app.route('/faces')
 @login_required
-def faces():  # Bekannte Gesichter anzeigen
+def faces():  
     username = session.get('username', 'Guest')
     message = request.args.get('message')
     message_type = request.args.get('message_type', 'success')
     
-    # Bekannte Gesichter aus JSON-Datei laden
+   
     faces = []
     faces_json_path = get_faces_json_path()
 
@@ -625,21 +602,21 @@ def faces():  # Bekannte Gesichter anzeigen
             with open(faces_json_path, 'r', encoding='utf-8') as f:
                 known_faces_data = json.load(f)
 
-            # Faces-Ordner erstellen falls nicht vorhanden
+          
             static_faces_dir = get_static_faces_dir()
             
             gesicht_dir = os.path.dirname(faces_json_path)
 
-            # Gesichter für Template aufbereiten
+            
             for i, face_data in enumerate(known_faces_data):
                 src_path = os.path.join(gesicht_dir, face_data['Image'])
                 dst_path = os.path.join(static_faces_dir, face_data['Image'])
 
-                # Bilder zu static/faces kopieren für Web-Zugriff
+               
                 if os.path.exists(src_path) and not os.path.exists(dst_path):
                     shutil.copy2(src_path, dst_path)
 
-                # Face-Objekt für Template erstellen
+              
                 face = {
                     'id': i + 1,
                     'name': face_data['Name'],
@@ -651,7 +628,7 @@ def faces():  # Bekannte Gesichter anzeigen
     except Exception as e:
         print(f"Fehler beim Laden der Gesichter: {e}")
     
-    # Kameras für Modal laden
+   
     cameras = []
     try:
         connection = get_db_connection()
@@ -669,23 +646,19 @@ def faces():  # Bekannte Gesichter anzeigen
                          message=message, 
                          message_type=message_type)
 
-# -----------------------------
-# Settings & Camera management
-# -----------------------------
 
 @app.route('/settings')
 @login_required
-def settings():  # Einstellungen anzeigen
+def settings():  
     username = session.get('username', 'Guest')
     
-    # Kameras aus der Datenbank laden
+    
     connection = get_db_connection()
     cursor = connection.cursor()
     cursor.execute("SELECT id, name, ip_address, resolution FROM camera_settings ORDER BY id")
     cameras_data = cursor.fetchall()
     connection.close()
     
-    # Umwandlung in Dictionary für JavaScript
     cameras = []
     for camera in cameras_data:
         camera_dict = {
@@ -700,7 +673,7 @@ def settings():  # Einstellungen anzeigen
 
 @app.route('/api/cameras', methods=['GET'])
 @login_required
-def get_cameras():  # Alle Kameras als JSON
+def get_cameras(): 
     """API Endpoint um alle Kameras zu laden"""
     connection = get_db_connection()
     cursor = connection.cursor()
@@ -722,14 +695,13 @@ def get_cameras():  # Alle Kameras als JSON
 
 @app.route('/api/cameras/<int:camera_id>', methods=['PUT'])
 @login_required
-def update_camera(camera_id):  # Kamera aktualisieren
-    """API Endpoint um eine Kamera zu aktualisieren"""
+def update_camera(camera_id): 
     data = request.get_json()
     
     connection = get_db_connection()
     cursor = connection.cursor()
     
-    # Kamera aktualisieren
+    
     cursor.execute("""
         UPDATE camera_settings 
         SET name = ?, ip_address = ?, resolution = ?
@@ -743,12 +715,12 @@ def update_camera(camera_id):  # Kamera aktualisieren
 
 @app.route('/api/cameras/<int:camera_id>', methods=['DELETE'])
 @login_required
-def delete_camera(camera_id):  # Kamera löschen
-    """API Endpoint um eine Kamera zu löschen"""
+def delete_camera(camera_id):  
+
     connection = get_db_connection()
     cursor = connection.cursor()
     
-    # Kamera löschen
+    
     cursor.execute("DELETE FROM camera_settings WHERE id = ?", (camera_id,))
     
     connection.commit()
@@ -758,14 +730,13 @@ def delete_camera(camera_id):  # Kamera löschen
 
 @app.route('/api/cameras', methods=['POST'])
 @login_required
-def create_camera():  # Neue Kamera anlegen
-    """API Endpoint um eine neue Kamera zu erstellen"""
+def create_camera(): 
     data = request.get_json()
     
     connection = get_db_connection()
     cursor = connection.cursor()
     
-    # Neue Kamera erstellen
+ 
     cursor.execute("""
         INSERT INTO camera_settings (name, ip_address, resolution)
         VALUES (?, ?, ?)
@@ -779,8 +750,7 @@ def create_camera():  # Neue Kamera anlegen
 
 @app.route('/api/cameras/<int:camera_id>/status')
 @login_required
-def check_camera_status(camera_id):  # Kamera-Status prüfen
-    """API Endpoint um den Status einer Kamera zu überprüfen"""
+def check_camera_status(camera_id):  
     try:
         connection = get_db_connection()
         cursor = connection.cursor()
@@ -796,7 +766,7 @@ def check_camera_status(camera_id):  # Kamera-Status prüfen
         if not ip_address:
             return jsonify({'success': False, 'error': 'Kamera-IP nicht konfiguriert'})
         
-        # Kurzer Test ob die Kamera erreichbar ist
+   
         try:
             response = requests.get(f"http://{ip_address}/?action=snapshot", 
                                    timeout=3,
@@ -811,14 +781,13 @@ def check_camera_status(camera_id):  # Kamera-Status prüfen
 
 @app.route('/logs')
 @login_required
-def logs():  # Logs-Seite anzeigen
+def logs():  
     """Log-Seite für Gesichtserkennungen"""
     try:
-        # Hole Parameter für Paginierung
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
         
-        # Hole Filter-Parameter
+       
         name_filter = request.args.get('name', '').strip()
         known_filter = request.args.get('known', '')
         date_from = request.args.get('date_from', '')
@@ -827,7 +796,7 @@ def logs():  # Logs-Seite anzeigen
         connection = get_db_connection()
         cursor = connection.cursor()
         
-        # Baue WHERE Klausel basierend auf Filtern
+        
         where_conditions = []
         params = []
         
@@ -851,15 +820,15 @@ def logs():  # Logs-Seite anzeigen
         
         where_clause = " WHERE " + " AND ".join(where_conditions) if where_conditions else ""
         
-        # Gesamtanzahl für Paginierung
+     
         count_query = f"SELECT COUNT(*) FROM face_detections{where_clause}"
         cursor.execute(count_query, params)
         total_count = cursor.fetchone()[0]
         
-        # Berechne Offset
+       
         offset = (page - 1) * per_page
         
-        # Hole Erkennungen mit Paginierung und Kamera-Namen
+        
         query = f"""
             SELECT 
                 fd.id, 
@@ -878,7 +847,7 @@ def logs():  # Logs-Seite anzeigen
         cursor.execute(query, params + [per_page, offset])
         detections = cursor.fetchall()
         
-        # Formatiere Daten
+       
         formatted_detections = []
         for detection in detections:
             formatted_detections.append({
@@ -894,7 +863,7 @@ def logs():  # Logs-Seite anzeigen
         
         connection.close()
         
-        # Paginierungs-Informationen
+       
         total_pages = (total_count + per_page - 1) // per_page
         has_prev = page > 1
         has_next = page < total_pages
@@ -918,19 +887,18 @@ def logs():  # Logs-Seite anzeigen
 
 @app.route('/api/logs/<int:detection_id>', methods=['DELETE'])
 @login_required
-def delete_detection(detection_id):  # Einzelne Erkennung löschen
-    """API zum Löschen einer einzelnen Erkennung"""
+def delete_detection(detection_id):  
     try:
         connection = get_db_connection()
         cursor = connection.cursor()
         
-        # Prüfe ob Erkennung existiert
+     
         cursor.execute("SELECT id FROM face_detections WHERE id = ?", (detection_id,))
         if not cursor.fetchone():
             connection.close()
             return jsonify({'success': False, 'error': 'Erkennung nicht gefunden'})
         
-        # Lösche Erkennung
+       
         cursor.execute("DELETE FROM face_detections WHERE id = ?", (detection_id,))
         connection.commit()
         connection.close()
@@ -942,8 +910,7 @@ def delete_detection(detection_id):  # Einzelne Erkennung löschen
 
 @app.route('/api/logs/bulk-delete', methods=['POST'])
 @login_required
-def bulk_delete_detections():  # Mehrere Erkennungen löschen
-    """API zum Löschen mehrerer Erkennungen"""
+def bulk_delete_detections():  
     try:
         data = request.get_json()
         detection_ids = data.get('ids', [])
@@ -954,7 +921,7 @@ def bulk_delete_detections():  # Mehrere Erkennungen löschen
         connection = get_db_connection()
         cursor = connection.cursor()
         
-        # Erstelle Platzhalter für IN-Klausel
+   
         placeholders = ','.join('?' * len(detection_ids))
         query = f"DELETE FROM face_detections WHERE id IN ({placeholders})"
         
@@ -973,8 +940,7 @@ def bulk_delete_detections():  # Mehrere Erkennungen löschen
 
 @app.route('/api/logs/clear-all', methods=['POST'])
 @login_required
-def clear_all_detections():  # Alle Erkennungen löschen
-    """API zum Löschen aller Erkennungen (mit Bestätigung)"""
+def clear_all_detections():  
     try:
         data = request.get_json()
         confirm = data.get('confirm', False)
@@ -985,11 +951,11 @@ def clear_all_detections():  # Alle Erkennungen löschen
         connection = get_db_connection()
         cursor = connection.cursor()
         
-        # Zähle vorher
+     
         cursor.execute("SELECT COUNT(*) FROM face_detections")
         count_before = cursor.fetchone()[0]
         
-        # Lösche alle
+       
         cursor.execute("DELETE FROM face_detections")
         connection.commit()
         connection.close()
@@ -1004,7 +970,7 @@ def clear_all_detections():  # Alle Erkennungen löschen
 
 @app.route('/account')
 @login_required
-def account():  # Account-Seite anzeigen
+def account():  
     username = session.get('username', 'Guest')
     error = request.args.get('error')
     success = request.args.get('success')
@@ -1012,7 +978,7 @@ def account():  # Account-Seite anzeigen
 
 @app.route('/capture_photo', methods=['POST'])
 @login_required
-def capture_photo():  # Foto von Kamera aufnehmen
+def capture_photo(): 
     try:
         data = request.get_json()
         camera_id = data.get('camera_id')
@@ -1021,7 +987,6 @@ def capture_photo():  # Foto von Kamera aufnehmen
         if not camera_id:
             return jsonify({'success': False, 'error': 'Kamera-ID fehlt'})
         
-        # Kamera-Daten aus der Datenbank laden
         connection = get_db_connection()
         cursor = connection.cursor()
         cursor.execute("SELECT name, ip_address FROM camera_settings WHERE id = ?", (camera_id,))
@@ -1037,7 +1002,7 @@ def capture_photo():  # Foto von Kamera aufnehmen
             connection.close()
             return jsonify({'success': False, 'error': 'Kamera-IP nicht konfiguriert'})
         
-        # Foto von der Kamera abrufen (kürzerer Timeout)
+  
         try:
             response = requests.get(f"http://{ip_address}/?action=snapshot", 
                                    timeout=5,
@@ -1047,25 +1012,24 @@ def capture_photo():  # Foto von Kamera aufnehmen
             connection.close()
             return jsonify({'success': False, 'error': f'Fehler beim Abrufen des Fotos: {str(e)}'})
         
-        # Captures-Ordner erstellen falls er nicht existiert
-        # Absoluter Pfad zum Webinterface-Verzeichnis
+      
         base_dir = os.path.dirname(os.path.abspath(__file__))
         captures_dir = os.path.join(base_dir, 'static', 'pictures', 'captures')
         os.makedirs(captures_dir, exist_ok=True)
         
-        # Dateiname generieren
+       
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{camera_name}_{timestamp}.jpg"
         filepath = os.path.join(captures_dir, filename)
         
-        # Foto speichern
+       
         with open(filepath, 'wb') as f:
             f.write(response.content)
         
-        # Relativer Pfad für die Datenbank (für Web-Zugriff)
+      
         relative_path = f"static/pictures/captures/{filename}"
         
-        # Eintrag in Datenbank erstellen
+        n
         cursor.execute("INSERT INTO captures (pfad) VALUES (?)", (relative_path,))
         connection.commit()
         connection.close()
@@ -1077,7 +1041,7 @@ def capture_photo():  # Foto von Kamera aufnehmen
 
 @app.route('/change_password', methods=['POST'])
 @login_required
-def change_password():  # Passwort ändern
+def change_password():  
     try:
         old_password = request.form.get('old_password')
         new_password = request.form.get('new_password')
@@ -1093,11 +1057,10 @@ def change_password():  # Passwort ändern
         if len(new_password) < 6:
             return render_template('account.html', username=username, error='Das neue Passwort muss mindestens 6 Zeichen lang sein.')
         
-        # Altes Passwort überprüfen
         if not check_login(username, old_password):
             return render_template('account.html', username=username, error='Das aktuelle Passwort ist falsch.')
         
-        # Neues Passwort hashen und in der Datenbank aktualisieren
+       
         connection = get_db_connection()
         cursor = connection.cursor()
         hashed_new_password = hashlib.sha256(new_password.encode()).hexdigest()
@@ -1112,7 +1075,7 @@ def change_password():  # Passwort ändern
 
 @app.route('/delete_account', methods=['POST'])
 @login_required
-def delete_account():  # Account löschen
+def delete_account():  
     try:
         password = request.form.get('password')
         username = session.get('username')
@@ -1120,18 +1083,18 @@ def delete_account():  # Account löschen
         if not password:
             return render_template('account.html', username=username, error='Passwort zur Bestätigung erforderlich.')
         
-        # Passwort überprüfen
+       
         if not check_login(username, password):
             return render_template('account.html', username=username, error='Falsches Passwort.')
         
-        # Benutzer aus der Datenbank löschen
+        
         connection = get_db_connection()
         cursor = connection.cursor()
         cursor.execute("DELETE FROM users WHERE username=?", (username,))
         connection.commit()
         connection.close()
         
-        # Session beenden
+       
         session.clear()
         
         return redirect(url_for('login', message='Account erfolgreich gelöscht.'))
@@ -1141,31 +1104,31 @@ def delete_account():  # Account löschen
 
 @app.route('/add_face', methods=['POST'])
 @login_required
-def add_face():  # Neues Gesicht hinzufügen
+def add_face():  
     try:
         name = request.form.get('name', '').strip()
         
         if not name:
             return redirect(url_for('faces', message='Name ist erforderlich', message_type='error'))
         
-        # Gesichter JSON-Datei Pfad
+       
         faces_json_path = get_faces_json_path()
         gesicht_dir = os.path.dirname(faces_json_path)
         
-        # Bestehende Gesichter laden
+     
         known_faces = []
         if os.path.exists(faces_json_path):
             with open(faces_json_path, 'r', encoding='utf-8') as f:
                 known_faces = json.load(f)
         
-        # Prüfen ob Name bereits existiert
+       
         for face in known_faces:
             if face['Name'].lower() == name.lower():
                 return redirect(url_for('faces', message=f'Ein Gesicht mit dem Namen "{name}" existiert bereits', message_type='error'))
         
         image_filename = None
         
-        # Bild-Upload verarbeiten
+     
         if 'image' in request.files and request.files['image'].filename:
             file = request.files['image']
             if file and file.filename:
@@ -1177,16 +1140,16 @@ def add_face():  # Neues Gesicht hinzufügen
                 image_path = os.path.join(gesicht_dir, image_filename)
                 file.save(image_path)
         
-        # Kamerafoto verarbeiten
+       
         elif 'camera_photo_data' in request.form and request.form.get('camera_photo_data'):
             camera_photo_data = request.form.get('camera_photo_data')
             
             try:
-                # Base64-Bilddaten dekodieren
+               
                 import base64
                 image_data = base64.b64decode(camera_photo_data)
                 
-                # Bild speichern
+                
                 image_filename = f"{uuid.uuid4()}.jpg"
                 image_path = os.path.join(gesicht_dir, image_filename)
                 
@@ -1196,11 +1159,11 @@ def add_face():  # Neues Gesicht hinzufügen
             except Exception as e:
                 return redirect(url_for('faces', message=f'Fehler beim Verarbeiten des Kamerafotos: {str(e)}', message_type='error'))
         
-        # Fallback: Direkte Kameraaufnahme
+        
         elif 'camera_id' in request.form and request.form.get('camera_id'):
             camera_id = request.form.get('camera_id')
             
-            # Kamera-URL aus Datenbank holen
+      
             connection = get_db_connection()
             cursor = connection.cursor()
             cursor.execute("SELECT name, ip_address FROM camera_settings WHERE id = ?", (camera_id,))
@@ -1213,11 +1176,11 @@ def add_face():  # Neues Gesicht hinzufügen
             camera_name, camera_ip = camera
             
             try:
-                # Foto von Kamera aufnehmen
+                
                 response = fetch_camera_snapshot(camera_ip, timeout=10)
                 response.raise_for_status()
                 
-                # Bild speichern
+                
                 image_filename = f"{uuid.uuid4()}.jpg"
                 image_path = os.path.join(gesicht_dir, image_filename)
                 
@@ -1233,18 +1196,17 @@ def add_face():  # Neues Gesicht hinzufügen
         if not image_filename:
             return redirect(url_for('faces', message='Fehler beim Verarbeiten des Bildes', message_type='error'))
         
-        # Neues Gesicht zur Liste hinzufügen
+       
         new_face = {
             'Name': name,
             'Image': image_filename
         }
         known_faces.append(new_face)
         
-        # JSON-Datei aktualisieren
+      
         with open(faces_json_path, 'w', encoding='utf-8') as f:
             json.dump(known_faces, f, ensure_ascii=False, indent=2)
         
-        # Bild zu static/faces kopieren
         static_faces_dir = get_static_faces_dir()
         src_path = os.path.join(gesicht_dir, image_filename)
         dst_path = os.path.join(static_faces_dir, image_filename)
@@ -1252,7 +1214,7 @@ def add_face():  # Neues Gesicht hinzufügen
         if os.path.exists(src_path):
             shutil.copy2(src_path, dst_path)
         
-        # FaceRecognition neu laden
+       
         face_recognition.reload_known_faces()
         
         return redirect(url_for('faces', message=f'Gesicht "{name}" wurde erfolgreich hinzugefügt', message_type='success'))
@@ -1263,9 +1225,9 @@ def add_face():  # Neues Gesicht hinzufügen
 
 @app.route('/delete_face/<int:face_id>', methods=['POST'])
 @login_required  
-def delete_face(face_id):  # Gesicht löschen
+def delete_face(face_id): 
     try:
-        # Gesichter JSON-Datei laden
+      
         faces_json_path = get_faces_json_path()
         gesicht_dir = os.path.dirname(faces_json_path)
         
@@ -1275,20 +1237,20 @@ def delete_face(face_id):  # Gesicht löschen
         with open(faces_json_path, 'r', encoding='utf-8') as f:
             known_faces = json.load(f)
         
-        # Gesicht löschen (face_id ist 1-basiert)
+       
         if 1 <= face_id <= len(known_faces):
             face_to_delete = known_faces[face_id - 1]
             face_name = face_to_delete['Name']
             image_filename = face_to_delete['Image']
             
-            # Aus Liste entfernen
+           
             known_faces.pop(face_id - 1)
             
-            # JSON-Datei aktualisieren
+           
             with open(faces_json_path, 'w', encoding='utf-8') as f:
                 json.dump(known_faces, f, ensure_ascii=False, indent=2)
             
-            # Bilddateien löschen
+        
             image_paths = [
                 os.path.join(gesicht_dir, image_filename),
                 os.path.join(get_static_faces_dir(), image_filename)
@@ -1298,7 +1260,7 @@ def delete_face(face_id):  # Gesicht löschen
                 if os.path.exists(path):
                     os.remove(path)
             
-            # FaceRecognition neu laden
+            
             face_recognition.reload_known_faces()
             
             return jsonify({'success': True, 'message': f'Gesicht "{face_name}" wurde gelöscht'})
@@ -1311,17 +1273,15 @@ def delete_face(face_id):  # Gesicht löschen
 
 @app.route('/api/faces/<int:face_id>/update', methods=['POST'])
 @login_required  
-def update_face_name(face_id):  # Aktualisiere Namen eines Gesichts
-    """API-Route zum Aktualisieren des Namens eines Gesichts"""
+def update_face_name(face_id):  
     try:
-        # Request-Daten holen
+       
         data = request.get_json()
         new_name = data.get('name', '').strip()
         
         if not new_name:
             return jsonify({'success': False, 'message': 'Name ist erforderlich'})
-        
-        # Gesichter JSON-Datei laden
+       
         faces_json_path = get_faces_json_path()
         
         if not os.path.exists(faces_json_path):
@@ -1330,24 +1290,23 @@ def update_face_name(face_id):  # Aktualisiere Namen eines Gesichts
         with open(faces_json_path, 'r', encoding='utf-8') as f:
             known_faces = json.load(f)
         
-        # Prüfen ob die face_id gültig ist (face_id ist 1-basiert)
+      
         if not (1 <= face_id <= len(known_faces)):
             return jsonify({'success': False, 'message': 'Ungültige Gesicht-ID'})
         
-        # Prüfen ob Name bereits existiert (außer bei dem aktuellen Gesicht)
+     
         for i, face in enumerate(known_faces):
             if i != (face_id - 1) and face['Name'].lower() == new_name.lower():
                 return jsonify({'success': False, 'message': f'Ein Gesicht mit dem Namen "{new_name}" existiert bereits'})
         
-        # Namen aktualisieren
+      
         old_name = known_faces[face_id - 1]['Name']
         known_faces[face_id - 1]['Name'] = new_name
-        
-        # JSON-Datei speichern
+      
         with open(faces_json_path, 'w', encoding='utf-8') as f:
             json.dump(known_faces, f, ensure_ascii=False, indent=2)
         
-        # FaceRecognition neu laden
+     
         face_recognition.reload_known_faces()
         
         return jsonify({'success': True, 'message': f'Name erfolgreich von "{old_name}" zu "{new_name}" geändert'})
@@ -1358,10 +1317,9 @@ def update_face_name(face_id):  # Aktualisiere Namen eines Gesichts
 
 @app.route('/api/camera/<int:camera_id>/recognize_face', methods=['POST'])
 @login_required
-def recognize_face_from_camera(camera_id):  # Erkenne Gesichter von Kamera
-    """Nimmt ein Foto von der Kamera auf und führt Gesichtserkennung durch"""
+def recognize_face_from_camera(camera_id): 
     try:
-        # Kamera-Details aus der Datenbank holen
+       
         connection = get_db_connection()
         cursor = connection.cursor()
         cursor.execute("SELECT name, ip_address FROM camera_settings WHERE id=?", (camera_id,))
@@ -1373,14 +1331,14 @@ def recognize_face_from_camera(camera_id):  # Erkenne Gesichter von Kamera
         
         camera_name, ip_address = camera_data
         
-        # Foto von der Kamera aufnehmen
+      
         image_url = f"http://{ip_address}/?action=snapshot"
         response = requests.get(image_url, timeout=5)
         
         if response.status_code != 200:
             return jsonify({'success': False, 'error': 'Konnte kein Foto von der Kamera aufnehmen'})
         
-        # Gesichtserkennung durchführen
+        
         result = face_recognition.detect_faces_in_image(response.content, camera_id=camera_id)
         
         return jsonify({
@@ -1395,10 +1353,9 @@ def recognize_face_from_camera(camera_id):  # Erkenne Gesichter von Kamera
 
 @app.route('/api/camera/<int:camera_id>/preview', methods=['GET'])
 @login_required
-def get_camera_preview(camera_id):  # Liefere Vorschaubild der Kamera
-    """Liefert ein Vorschaubild von der angegebenen Kamera"""
+def get_camera_preview(camera_id):  
     try:
-        # Kamera-Details aus der Datenbank holen
+        
         connection = get_db_connection()
         cursor = connection.cursor()
         cursor.execute("SELECT name, ip_address FROM camera_settings WHERE id=?", (camera_id,))
@@ -1410,12 +1367,12 @@ def get_camera_preview(camera_id):  # Liefere Vorschaubild der Kamera
         
         camera_name, ip_address = camera_data
         
-        # Snapshot von der Kamera anfordern
+   
         image_url = f"http://{ip_address}/?action=snapshot"
         response = requests.get(image_url, timeout=10)
         
         if response.status_code != 200:
-            # Fallback: Platzhalter-Bild zurückgeben
+           
             placeholder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'icons', 'camera.png')
             if os.path.exists(placeholder_path):
                 with open(placeholder_path, 'rb') as f:
@@ -1423,7 +1380,7 @@ def get_camera_preview(camera_id):  # Liefere Vorschaubild der Kamera
             else:
                 return jsonify({'error': 'Kamera nicht erreichbar'}), 500
         
-        # Bild direkt zurückgeben
+  
         return response.content, 200, {'Content-Type': 'image/jpeg'}
         
     except requests.exceptions.Timeout:
@@ -1436,10 +1393,10 @@ def get_camera_preview(camera_id):  # Liefere Vorschaubild der Kamera
 
 @app.route('/api/camera/<int:camera_id>/capture', methods=['POST'])
 @login_required
-def capture_camera_photo(camera_id):  # Foto aufnehmen und zurückgeben
+def capture_camera_photo(camera_id):  
     """Nimmt ein Foto von der Kamera auf und gibt die Bilddaten zurück"""
     try:
-        # Kamera-Details aus der Datenbank holen
+       
         connection = get_db_connection()
         cursor = connection.cursor()
         cursor.execute("SELECT name, ip_address FROM camera_settings WHERE id=?", (camera_id,))
@@ -1451,14 +1408,14 @@ def capture_camera_photo(camera_id):  # Foto aufnehmen und zurückgeben
         
         camera_name, ip_address = camera_data
         
-        # Foto von der Kamera aufnehmen
+     
         image_url = f"http://{ip_address}/?action=snapshot"
         response = requests.get(image_url, timeout=10)
         
         if response.status_code != 200:
             return jsonify({'success': False, 'error': 'Konnte kein Foto aufnehmen'})
         
-        # Temporäre Datei erstellen für das Foto
+       
         import base64
         image_data = base64.b64encode(response.content).decode('utf-8')
         
@@ -1479,13 +1436,12 @@ def capture_camera_photo(camera_id):  # Foto aufnehmen und zurückgeben
 
 @app.route('/api/face_detections/recent', methods=['GET'])
 @login_required
-def get_recent_face_detections():  # Aktuelle Erkennungen liefern
-    """API für aktuelle Gesichtserkennungen"""
+def get_recent_face_detections():  
     try:
         limit = request.args.get('limit', 10, type=int)
         detections = face_recognition.get_recent_detections(limit)
         
-        # Formatiere für Frontend
+        
         formatted_detections = []
         for detection in detections:
             formatted_detections.append({
@@ -1503,8 +1459,7 @@ def get_recent_face_detections():  # Aktuelle Erkennungen liefern
 
 @app.route('/api/face_detections/statistics', methods=['GET'])
 @login_required 
-def get_face_detection_statistics():  # Statistiken zur Gesichtserkennung
-    """API für Gesichtserkennungs-Statistiken"""
+def get_face_detection_statistics():  
     try:
         connection = get_db_connection()
         cursor = connection.cursor()
@@ -1521,7 +1476,7 @@ def get_face_detection_statistics():  # Statistiken zur Gesichtserkennung
         
         today_stats = cursor.fetchone()
         
-        # Statistiken für diese Woche
+        
         cursor.execute("""
             SELECT 
                 COUNT(*) as total_week,
@@ -1557,10 +1512,9 @@ def get_face_detection_statistics():  # Statistiken zur Gesichtserkennung
 
 @app.route('/api/face_monitoring/start_continuous', methods=['POST'])
 @login_required
-def start_continuous_monitoring():  # Starte kontinuierliche Überwachung
-    """Startet kontinuierliche Gesichtserkennung für alle Kameras"""
+def start_continuous_monitoring():  
     try:
-        # TODO: Implementiere kontinuierliche Überwachung
+        # TODO: 
         return jsonify({
             'success': True, 
             'message': 'Kontinuierliche Gesichtserkennung gestartet',
@@ -1569,12 +1523,11 @@ def start_continuous_monitoring():  # Starte kontinuierliche Überwachung
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-# Face monitoring API routes removed - face recognition functionality disabled
+
 
 @app.route('/api/cameras/<int:camera_id>/status', methods=['GET'])
 @login_required
-def get_camera_status(camera_id):  # Einzelne Kamera-Status prüfen
-    """API Endpoint um den Status einer einzelnen Kamera zu überprüfen"""
+def get_camera_status(camera_id):  
     connection = get_db_connection()
     cursor = connection.cursor()
     cursor.execute("SELECT ip_address FROM camera_settings WHERE id = ?", (camera_id,))
@@ -1584,7 +1537,7 @@ def get_camera_status(camera_id):  # Einzelne Kamera-Status prüfen
     if not camera or not camera[0]:
         return jsonify({'status': 'offline', 'status_text': 'Offline'})
     
-    # Einfacher Online-Check
+  
     try:
         response = requests.get(f"http://{camera[0]}/?action=snapshot", timeout=3)
         is_online = response.status_code == 200
@@ -1598,8 +1551,7 @@ def get_camera_status(camera_id):  # Einzelne Kamera-Status prüfen
 
 @app.route('/api/cameras/status', methods=['GET'])
 @login_required
-def get_all_cameras_status():  # Alle Kamera-Status prüfen
-    """API Endpoint um den Status aller Kameras zu überprüfen"""
+def get_all_cameras_status():  
     connection = get_db_connection()
     cursor = connection.cursor()
     cursor.execute("SELECT id, ip_address FROM camera_settings ORDER BY id")
@@ -1624,8 +1576,7 @@ def get_all_cameras_status():  # Alle Kamera-Status prüfen
 
 @app.route('/api/face_monitoring/status', methods=['GET'])
 @login_required
-def face_monitoring_status():  # Face-Monitoring-Status liefern
-    """API Endpoint für Face Monitoring Status"""
+def face_monitoring_status(): 
     global face_recognition, face_monitoring
     
     if face_recognition is None:
@@ -1637,10 +1588,10 @@ def face_monitoring_status():  # Face-Monitoring-Status liefern
             'monitoring': {'is_running': False, 'interval': 0}
         })
     
-    # Aktuelle Statistiken
+   
     known_faces_count = len(face_recognition.known_faces)
     
-    # Zähle Erkennungen der letzten 24 Stunden
+  
     connection = get_db_connection()
     cursor = connection.cursor()
     cursor.execute("""
@@ -1651,7 +1602,7 @@ def face_monitoring_status():  # Face-Monitoring-Status liefern
     recent_detections = cursor.fetchone()['count']
     connection.close()
     
-    # Monitoring Status
+    
     monitoring_status = face_monitoring.get_status()
     
     return jsonify({
@@ -1664,21 +1615,20 @@ def face_monitoring_status():  # Face-Monitoring-Status liefern
 
 @app.route('/api/face_monitoring/start', methods=['POST'])
 @login_required
-def start_face_monitoring():  # Starte Face Monitoring
-    """Startet kontinuierliches Face Monitoring"""
+def start_face_monitoring():  
     global face_monitoring
     
     try:
         user_id = session.get('user_id')
         
-        # Optional: Intervall aus Request holen
+       
         data = request.get_json() or {}
-        interval = data.get('interval', 15)  # Standard: 15 Sekunden
+        interval = data.get('interval', 15)  
         
         face_monitoring.set_interval(interval)
         face_monitoring.start_monitoring()
         
-        # Einstellungen in Datenbank speichern
+       
         face_monitoring.save_settings_to_db(user_id)
         
         return jsonify({
@@ -1691,8 +1641,7 @@ def start_face_monitoring():  # Starte Face Monitoring
 
 @app.route('/api/face_monitoring/stop', methods=['POST'])
 @login_required
-def stop_face_monitoring():  # Stoppe Face Monitoring
-    """Stoppt kontinuierliches Face Monitoring"""
+def stop_face_monitoring(): 
     global face_monitoring
     
     try:
@@ -1700,7 +1649,7 @@ def stop_face_monitoring():  # Stoppe Face Monitoring
         
         face_monitoring.stop_monitoring()
         
-        # Einstellungen in Datenbank speichern
+        
         face_monitoring.save_settings_to_db(user_id)
         
         return jsonify({
@@ -1713,8 +1662,8 @@ def stop_face_monitoring():  # Stoppe Face Monitoring
 
 @app.route('/api/face_monitoring/interval', methods=['POST'])
 @login_required
-def set_monitoring_interval():  # Intervall einstellen
-    """Ändert das Monitoring-Intervall"""
+def set_monitoring_interval(): 
+   
     global face_monitoring
     
     try:
@@ -1727,7 +1676,7 @@ def set_monitoring_interval():  # Intervall einstellen
         
         face_monitoring.set_interval(interval)
         
-        # Einstellungen in Datenbank speichern
+       
         face_monitoring.save_settings_to_db(user_id)
         
         return jsonify({
@@ -1738,11 +1687,10 @@ def set_monitoring_interval():  # Intervall einstellen
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-# Dashboard Settings API
+
 @app.route('/api/dashboard/settings', methods=['GET'])
 @login_required
-def get_dashboard_settings():  # Lade Dashboard-Einstellungen
-    """Lädt Dashboard-Einstellungen für den aktuellen Benutzer"""
+def get_dashboard_settings():  
     try:
         user_id = session.get('user_id')
         print(f"📋 Loading dashboard settings for user_id: {user_id}")
@@ -1753,7 +1701,7 @@ def get_dashboard_settings():  # Lade Dashboard-Einstellungen
         connection = get_db_connection()
         cursor = connection.cursor()
         
-        # Lade alle Einstellungen für den Benutzer
+        
         cursor.execute('''
             SELECT setting_key, setting_value 
             FROM dashboard_settings 
@@ -1765,10 +1713,10 @@ def get_dashboard_settings():  # Lade Dashboard-Einstellungen
         
         print(f"📊 Found {len(settings_rows)} settings in database for user {user_id}")
         
-        # Konvertiere zu Dictionary
+        
         settings = {}
         for key, value in settings_rows:
-            # Versuche JSON zu parsen, falls nicht möglich als String
+         
             try:
                 import json
                 settings[key] = json.loads(value)
@@ -1776,7 +1724,7 @@ def get_dashboard_settings():  # Lade Dashboard-Einstellungen
                 settings[key] = value
             print(f"  - {key}: {settings[key]}")
         
-        # Standard-Einstellungen falls keine vorhanden
+      
         default_settings = {
             'monitoring_interval': 15,
             'monitoring_enabled': False,
@@ -1784,7 +1732,6 @@ def get_dashboard_settings():  # Lade Dashboard-Einstellungen
             'refresh_interval': 30
         }
         
-        # Merge mit Defaults
         for key, default_value in default_settings.items():
             if key not in settings:
                 settings[key] = default_value
@@ -1799,8 +1746,7 @@ def get_dashboard_settings():  # Lade Dashboard-Einstellungen
 
 @app.route('/api/dashboard/settings', methods=['POST'])
 @login_required
-def save_dashboard_settings():  # Einstellungen speichern
-    """Speichert Dashboard-Einstellungen für den aktuellen Benutzer"""
+def save_dashboard_settings():  
     try:
         user_id = session.get('user_id')
         data = request.get_json()
@@ -1812,13 +1758,13 @@ def save_dashboard_settings():  # Einstellungen speichern
         connection = get_db_connection()
         cursor = connection.cursor()
         
-        # Speichere jede Einstellung
+       
         for key, value in settings.items():
-            # Konvertiere zu JSON String
+            
             import json
             value_str = json.dumps(value) if not isinstance(value, str) else str(value)
             
-            # INSERT OR REPLACE für jede Einstellung
+            
             cursor.execute('''
                 INSERT OR REPLACE INTO dashboard_settings 
                 (user_id, setting_key, setting_value, updated_at)
@@ -1838,8 +1784,7 @@ def save_dashboard_settings():  # Einstellungen speichern
 
 @app.route('/api/dashboard/setting/<setting_key>', methods=['POST'])
 @login_required
-def save_single_dashboard_setting(setting_key):  # Einzelne Einstellung speichern
-    """Speichert eine einzelne Dashboard-Einstellung"""
+def save_single_dashboard_setting(setting_key):  
     try:
         user_id = session.get('user_id')
         data = request.get_json()
@@ -1856,11 +1801,11 @@ def save_single_dashboard_setting(setting_key):  # Einzelne Einstellung speicher
         connection = get_db_connection()
         cursor = connection.cursor()
         
-        # Konvertiere zu JSON String falls nötig
+        
         import json
         value_str = json.dumps(value) if not isinstance(value, str) else str(value)
         
-        # INSERT OR REPLACE
+  
         cursor.execute('''
             INSERT OR REPLACE INTO dashboard_settings 
             (user_id, setting_key, setting_value, updated_at)
@@ -1869,8 +1814,7 @@ def save_single_dashboard_setting(setting_key):  # Einzelne Einstellung speicher
         
         connection.commit()
         print(f"✅ Setting {setting_key} = {value} saved to database for user {user_id}")
-        
-        # Verifikation: Prüfe ob es wirklich gespeichert wurde
+
         cursor.execute('SELECT setting_value FROM dashboard_settings WHERE user_id = ? AND setting_key = ?', 
                       (user_id, setting_key))
         saved_value = cursor.fetchone()
